@@ -8,9 +8,12 @@
 #include <string>
 
 // ---------------------------------------------------------------------------
-// Configuration — change this to run a different command in the WinRE shell.
+// Wipe target configuration
+// Use Windows diskpart 'list disk' + 'list partition' to identify these values.
+// WARNING: The specified partition will be formatted (all data erased).
 // ---------------------------------------------------------------------------
-constexpr const char* kTestCommand = "diskpart";
+constexpr int kWipeDiskNumber      = 0;  // Disk 0  (single physical disk)
+constexpr int kWipePartitionNumber = 5;  // Partition 5  →  D: drive (~200 GB)
 
 // ---------------------------------------------------------------------------
 // Helper: banner
@@ -20,6 +23,9 @@ static void PrintBanner()
     std::cout << "\n";
     std::cout << "  ====================================================\n";
     std::cout << "         WinRE Boot Launcher  |  github.com/bkucuk    \n";
+    std::cout << "  ====================================================\n";
+    std::cout << "  Wipe target : Disk " << kWipeDiskNumber
+              << "  /  Partition "       << kWipePartitionNumber << "\n";
     std::cout << "  ====================================================\n";
     std::cout << "\n";
 }
@@ -50,10 +56,11 @@ int main()
     WinREFinder::PrintInfo(winrePath, winreStatus);
 
     // ---- 2. Patch winre.wim ----
-    std::cout << "  [2/4] Patching WinRE image to launch '" << kTestCommand
-              << "' on boot...\n\n";
+    std::cout << "  [2/4] Patching WinRE image "
+                 "(Disk " << kWipeDiskNumber
+              << "  /  Partition " << kWipePartitionNumber << ")...\n\n";
 
-    if (!WinREPatcher::Patch(winrePath, kTestCommand))
+    if (!WinREPatcher::Patch(winrePath, kWipeDiskNumber, kWipePartitionNumber))
     {
         std::cerr << "  [ERROR] Failed to patch WinRE image. Aborting.\n\n";
         std::cout << "  Press any key to exit...\n";

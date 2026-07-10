@@ -13,12 +13,11 @@
 namespace
 {
     /**
-     * @brief Runs a command in the current console (output visible to the user)
-     *        and waits for it to finish.
+     * @brief Runs a command in the current console (output visible) and waits.
      *
      * @param cmd       Command line to execute.
-     * @param timeoutMs Maximum time to wait in milliseconds.
-     * @return true  Process exited with code 0.
+     * @param timeoutMs Maximum wait in milliseconds.
+     * @return true  Exited with code 0.
      * @return false Could not start, timed out, or non-zero exit.
      */
     bool RunVisible(const std::string& cmd, DWORD timeoutMs = 120'000)
@@ -29,18 +28,16 @@ namespace
 
         std::string buf = cmd;
         BOOL created = CreateProcessA(
-            nullptr,
-            buf.data(),
+            nullptr, buf.data(),
             nullptr, nullptr,
-            TRUE,   // inherit handles → DISM output appears in our console
-            0,
+            TRUE, 0,            // inherit handles → output in our console
             nullptr, nullptr,
             &si, &pi);
 
         if (!created)
         {
             std::cerr << "  [ERROR] CreateProcess failed: " << cmd
-                      << "  (code " << GetLastError() << ")\n";
+                      << " (code " << GetLastError() << ")\n";
             return false;
         }
 
@@ -54,10 +51,7 @@ namespace
         return (exitCode == 0);
     }
 
-    /**
-     * @brief Builds a unique DISM mount point path under %TEMP%.
-     *        Pattern: %TEMP%\winre_mount_<PID>
-     */
+    /** @brief Builds %TEMP%\winre_mount_<PID>. */
     std::string BuildMountDir()
     {
         char tmp[MAX_PATH] = {};
@@ -72,10 +66,7 @@ namespace
         return dir;
     }
 
-    /**
-     * @brief Scans drive letters A-Z for <drive>:\Recovery\WindowsRE\winre.wim
-     *        as a fallback when the device path is not directly accessible.
-     */
+    /** @brief Scans A-Z for <drive>:\Recovery\WindowsRE\winre.wim. */
     std::string ScanDrivesForWim()
     {
         for (char d = 'A'; d <= 'Z'; ++d)
@@ -108,7 +99,7 @@ namespace
             return winreDir;
         }
 
-        // Append winre.wim
+        // Append winre.wim to directory
         std::string candidate = winreDir;
         if (!candidate.empty() && candidate.back() != '\\')
             candidate += '\\';
@@ -123,23 +114,105 @@ namespace
     }
 
     /**
-     * @brief Patches winpeshl.ini inside the mounted WinRE image.
+     * @brief Writes the diskpart command script into the mounted WinRE image.
+     *        Path inside the image: Windows\System32\wipe_script.txt
+     *        At WinRE runtime this becomes: X:\Windows\System32\wipe_script.txt
      *
-     * WinRE's startup is controlled by winpeshl.ini, NOT startnet.cmd.
-     * The default entry launches reagent.exe (the recovery GUI).
-     * We replace it with cmd.exe /k <command> so the terminal opens first.
-     * After the user types 'exit', the WinRE session ends and Windows resumes.
+     * @param mountDir      Root of the mounted WinRE image.
+     * @param diskNumber     Disk to target.
+     * @param partitionNumber Partition to format.
+     * @return true  File written successfully.
+     * @return false File could not be created.
+     */
+    bool WriteWipeScript(const std::string& mountDir,
+                         int diskNumber, int partitionNumber)
+    {
+        std::string path = mountDir + "\\Windows\\System32\\wipe_script.txt";
+        std::ofstream out(path, std::ios::trunc);
+        if (!out.is_open())
+        {
+            std::cerr << "  [ERROR] Cannot create wipe_script.txt\n";
+            return false;
+        }
+
+        out << "select disk "      << diskNumber      << "\r\n";
+        out << "select partition " << partitionNumber << "\r\n";
+        out << "format fs=ntfs quick label=\"WIPED\"\r\n";
+        out << "exit\r\n";
+
+        std::cout << "  wipe_script.txt written:\n"
+                  << "    select disk "      << diskNumber      << "\n"
+                  << "    select partition " << partitionNumber << "\n"
+                  << "    format fs=ntfs quick label=\"WIPED\"\n"
+                  << "    exit\n\n";
+        return true;
+    }
+
+    /**
+     * @brief Writes the launcher batch script into the mounted WinRE image.
+     *        Path inside the image: Windows\System32\wipe_launch.cmd
+     *        At WinRE runtime: X:\Windows\System32\wipe_launch.cmd
+     *
+     *        Flow:
+     *          1. Print a status banner.
+     *          2. Run diskpart /s wipe_script.txt  (no user input needed).
+     *          3. Wait 5 seconds.
+     *          4. wpeutil reboot  → restart back into Windows.
+     *
+     * @param mountDir      Root of the mounted WinRE image.
+     * @param diskNumber     Disk number shown in the banner.
+     * @param partitionNumber Partition number shown in the banner.
+     * @return true  File written successfully.
+     * @return false File could not be created.
+     */
+    bool WriteLaunchCmd(const std::string& mountDir,
+                        int diskNumber, int partitionNumber)
+    {
+        std::string path = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
+        std::ofstream out(path, std::ios::trunc);
+        if (!out.is_open())
+        {
+            std::cerr << "  [ERROR] Cannot create wipe_launch.cmd\n";
+            return false;
+        }
+
+        out << "@echo off\r\n";
+        out << "echo.\r\n";
+        out << "echo  =====================================================\r\n";
+        out << "echo   WinRE Auto-Wipe  ^|  Disk " << diskNumber
+            << "  Partition " << partitionNumber << "\r\n";
+        out << "echo  =====================================================\r\n";
+        out << "echo.\r\n";
+        out << "echo  Running diskpart wipe script...\r\n";
+        out << "echo  Target: Disk " << diskNumber
+            << "  /  Partition " << partitionNumber << "\r\n";
+        out << "echo.\r\n";
+        // Run diskpart non-interactively with the embedded script
+        out << "diskpart /s X:\\Windows\\System32\\wipe_script.txt\r\n";
+        out << "echo.\r\n";
+        out << "echo  Wipe complete. Rebooting in 5 seconds...\r\n";
+        // ping delay: n+1 pings ≈ n seconds
+        out << "ping 127.0.0.1 -n 6 > nul\r\n";
+        out << "wpeutil reboot\r\n";
+
+        std::cout << "  wipe_launch.cmd written "
+                     "(diskpart /s → wpeutil reboot).\n\n";
+        return true;
+    }
+
+    /**
+     * @brief Updates winpeshl.ini inside the mounted WinRE image to launch
+     *        wipe_launch.cmd instead of the standard recovery UI.
      *
      * @param mountDir Root of the mounted WinRE image.
-     * @param command  Command to run inside the WinRE shell.
      * @return true  File written successfully.
      * @return false File could not be opened for writing.
      */
-    bool PatchWinpeshl(const std::string& mountDir, const std::string& command)
+    bool PatchWinpeshl(const std::string& mountDir)
     {
         std::string iniPath = mountDir + "\\Windows\\System32\\winpeshl.ini";
 
-        // Read current content for display
+        // Show current content
         std::string original;
         {
             std::ifstream in(iniPath);
@@ -150,39 +223,28 @@ namespace
                 original = oss.str();
             }
         }
-
-        // Guard: already patched with the same command?
-        if (original.find("cmd.exe, /k " + command) != std::string::npos)
-        {
-            std::cout << "  winpeshl.ini already contains the target command. "
-                         "No change needed.\n";
-            return true;
-        }
-
         std::cout << "  --- winpeshl.ini (before) ---\n"
-                  << (original.empty() ? "  (empty / not found)\n" : original)
-                  << "\n";
+                  << (original.empty() ? "  (empty)\n" : original) << "\n";
 
-        // Write patched version — replace entire file
         std::ofstream out(iniPath, std::ios::trunc);
         if (!out.is_open())
         {
-            std::cerr << "  [ERROR] Cannot open winpeshl.ini for writing.\n"
-                         "          Path: " << iniPath << "\n";
+            std::cerr << "  [ERROR] Cannot open winpeshl.ini for writing.\n";
             return false;
         }
 
+        // Launch cmd.exe running our batch script; X:\ is the WinRE RAM drive
         out << "[LaunchApps]\r\n";
-        out << "cmd.exe, /k " << command << "\r\n";
+        out << "X:\\Windows\\System32\\cmd.exe, /c X:\\Windows\\System32\\wipe_launch.cmd\r\n";
 
         std::cout << "  --- winpeshl.ini (after) ---\n"
                   << "  [LaunchApps]\n"
-                  << "  cmd.exe, /k " << command << "\n\n";
-
+                  << "  X:\\Windows\\System32\\cmd.exe, "
+                     "/c X:\\Windows\\System32\\wipe_launch.cmd\n\n";
         return true;
     }
 
-    /** @brief Best-effort: discards a failed DISM mount and removes the directory. */
+    /** @brief Best-effort discard of a failed DISM mount. */
     void DiscardMount(const std::string& mountDir)
     {
         RunVisible(
@@ -197,35 +259,37 @@ namespace
 // ---------------------------------------------------------------------------
 namespace WinREPatcher
 {
-    bool Patch(const std::string& winreDir, const std::string& command)
+    bool Patch(const std::string& winreDir, int diskNumber, int partitionNumber)
     {
-        // ── Resolve .wim path ─────────────────────────────────────────────────
+        // ── Resolve winre.wim ─────────────────────────────────────────────────
         std::cout << "  Resolving winre.wim from: " << winreDir << "\n";
         const std::string wimPath = ResolveWimPath(winreDir);
 
         if (wimPath.empty())
         {
-            std::cerr << "  [ERROR] winre.wim not found on any drive.\n";
+            std::cerr << "  [ERROR] winre.wim not found.\n";
             return false;
         }
 
         const std::string mountDir = BuildMountDir();
 
         std::cout << "  WinRE image : " << wimPath  << "\n";
-        std::cout << "  Mount dir   : " << mountDir << "\n\n";
+        std::cout << "  Mount dir   : " << mountDir << "\n";
+        std::cout << "  Wipe target : Disk " << diskNumber
+                  << "  /  Partition " << partitionNumber << "\n\n";
 
         // ── Step 1: Create mount directory ────────────────────────────────────
-        std::cout << "  [1/3] Creating mount directory...\n";
+        std::cout << "  [1/4] Creating mount directory...\n";
         if (!CreateDirectoryA(mountDir.c_str(), nullptr))
         {
-            std::cerr << "  [ERROR] Could not create mount directory "
+            std::cerr << "  [ERROR] CreateDirectory failed "
                       << "(code " << GetLastError() << ")\n";
             return false;
         }
 
         // ── Step 2: Mount via DISM ────────────────────────────────────────────
-        std::cout << "  [2/3] Mounting WinRE image via DISM "
-                     "(this may take up to 60 seconds)...\n\n";
+        std::cout << "  [2/4] Mounting WinRE image via DISM "
+                     "(may take up to 60 s)...\n\n";
 
         std::string mountCmd =
             "dism.exe /Mount-Image"
@@ -239,14 +303,22 @@ namespace WinREPatcher
             RemoveDirectoryA(mountDir.c_str());
             return false;
         }
-        std::cout << "\n  Image mounted successfully.\n\n";
+        std::cout << "\n  Image mounted.\n\n";
 
-        // ── Step 3: Patch winpeshl.ini ────────────────────────────────────────
-        // winpeshl.ini controls what WinRE launches on boot (NOT startnet.cmd).
-        // The default entry starts reagent.exe (the recovery GUI); we replace it
-        // with cmd.exe so the terminal opens immediately.
-        std::cout << "  [3/3] Patching winpeshl.ini...\n";
-        if (!PatchWinpeshl(mountDir, command))
+        // ── Step 3: Embed wipe_script.txt and wipe_launch.cmd ─────────────────
+        std::cout << "  [3/4] Embedding wipe scripts...\n\n";
+
+        if (!WriteWipeScript(mountDir, diskNumber, partitionNumber) ||
+            !WriteLaunchCmd (mountDir, diskNumber, partitionNumber))
+        {
+            std::cerr << "  [ERROR] Failed to write scripts. Discarding mount.\n";
+            DiscardMount(mountDir);
+            return false;
+        }
+
+        // ── Step 4: Patch winpeshl.ini ────────────────────────────────────────
+        std::cout << "  [4/4] Patching winpeshl.ini...\n";
+        if (!PatchWinpeshl(mountDir))
         {
             std::cerr << "  [ERROR] winpeshl.ini patch failed. Discarding mount.\n";
             DiscardMount(mountDir);
@@ -254,8 +326,7 @@ namespace WinREPatcher
         }
 
         // ── Commit and unmount ────────────────────────────────────────────────
-        std::cout << "  Committing and unmounting "
-                     "(this may take up to 60 seconds)...\n\n";
+        std::cout << "  Committing and unmounting (may take up to 60 s)...\n\n";
 
         std::string unmountCmd =
             "dism.exe /Unmount-Image"
@@ -270,7 +341,7 @@ namespace WinREPatcher
             return false;
         }
 
-        std::cout << "\n  winre.wim patched and committed successfully.\n\n";
+        std::cout << "\n  winre.wim patched and committed.\n\n";
 
         RemoveDirectoryA(mountDir.c_str());
         return true;
