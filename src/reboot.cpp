@@ -1,6 +1,5 @@
 #include "reboot.h"
 
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 #include <iostream>
@@ -29,7 +28,8 @@ namespace
                               &hToken))
             return false;
 
-        if (!LookupPrivilegeValueA(nullptr, SE_SHUTDOWN_NAME, &luid))
+        // SE_SHUTDOWN_NAME is wchar_t* when UNICODE is defined → use the W variant
+        if (!LookupPrivilegeValueW(nullptr, SE_SHUTDOWN_NAME, &luid))
         {
             CloseHandle(hToken);
             return false;
