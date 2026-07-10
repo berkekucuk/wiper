@@ -13,13 +13,13 @@
 namespace
 {
     /**
-     * @brief Runs a command in the current console (output is visible to the user)
+     * @brief Runs a command in the current console (output visible to the user)
      *        and waits for it to finish.
      *
-     * @param cmd       Command line string to execute.
+     * @param cmd       Command line to execute.
      * @param timeoutMs Maximum time to wait in milliseconds.
      * @return true  Process exited with code 0.
-     * @return false Process could not be created, timed out, or exited non-zero.
+     * @return false Could not start, timed out, or non-zero exit.
      */
     bool RunVisible(const std::string& cmd, DWORD timeoutMs = 120'000)
     {
@@ -27,20 +27,19 @@ namespace
         PROCESS_INFORMATION pi = {};
         si.cb = sizeof(si);
 
-        // Inherit the current console handles so DISM output is shown inline.
         std::string buf = cmd;
         BOOL created = CreateProcessA(
             nullptr,
             buf.data(),
             nullptr, nullptr,
-            TRUE,              // inherit handles → output appears in our console
-            0,                 // no CREATE_NO_WINDOW — we want to see output
+            TRUE,   // inherit handles → DISM output appears in our console
+            0,
             nullptr, nullptr,
             &si, &pi);
 
         if (!created)
         {
-            std::cerr << "  [ERROR] CreateProcess failed for: " << cmd
+            std::cerr << "  [ERROR] CreateProcess failed: " << cmd
                       << "  (code " << GetLastError() << ")\n";
             return false;
         }
@@ -49,7 +48,6 @@ namespace
 
         DWORD exitCode = 1;
         GetExitCodeProcess(pi.hProcess, &exitCode);
-
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
 
@@ -57,7 +55,7 @@ namespace
     }
 
     /**
-     * @brief Builds a unique temp directory path for the DISM mount point.
+     * @brief Builds a unique DISM mount point path under %TEMP%.
      *        Pattern: %TEMP%\winre_mount_<PID>
      */
     std::string BuildMountDir()
@@ -75,44 +73,33 @@ namespace
     }
 
     /**
-     * @brief Scans all available drive letters (A–Z) for the standard WinRE image
-     *        path: <drive>:\Recovery\WindowsRE\winre.wim
-     *
-     * @return Full path to winre.wim if found, or an empty string.
+     * @brief Scans drive letters A-Z for <drive>:\Recovery\WindowsRE\winre.wim
+     *        as a fallback when the device path is not directly accessible.
      */
     std::string ScanDrivesForWim()
     {
-        for (char drive = 'A'; drive <= 'Z'; ++drive)
+        for (char d = 'A'; d <= 'Z'; ++d)
         {
-            std::string candidate;
-            candidate += drive;
-            candidate += ":\\Recovery\\WindowsRE\\winre.wim";
-
-            if (GetFileAttributesA(candidate.c_str()) != INVALID_FILE_ATTRIBUTES)
-                return candidate;
+            std::string p;
+            p += d;
+            p += ":\\Recovery\\WindowsRE\\winre.wim";
+            if (GetFileAttributesA(p.c_str()) != INVALID_FILE_ATTRIBUTES)
+                return p;
         }
         return {};
     }
 
     /**
-     * @brief Resolves the path to winre.wim given the WinRE directory path.
-     *
-     * Priority:
-     *   1. If the input already ends in ".wim" and the file exists → use it.
-     *   2. Append "winre.wim" to the directory; if the file exists → use it.
-     *   3. Scan all drive letters for <drive>:\Recovery\WindowsRE\winre.wim.
-     *
-     * @param winreDir Directory path from WinREFinder (may be a device path).
-     * @return Resolved path, or empty string if not found.
+     * @brief Resolves the full path to winre.wim.
+     *        Tries the provided directory first, then scans drives as fallback.
      */
     std::string ResolveWimPath(const std::string& winreDir)
     {
-        // Helper: check if a file exists
         auto exists = [](const std::string& p) {
             return GetFileAttributesA(p.c_str()) != INVALID_FILE_ATTRIBUTES;
         };
 
-        // 1. Already a .wim path?
+        // Already a .wim path?
         constexpr std::string_view ext = ".wim";
         if (winreDir.size() >= ext.size() &&
             winreDir.compare(winreDir.size() - ext.size(), ext.size(), ext) == 0 &&
@@ -121,7 +108,7 @@ namespace
             return winreDir;
         }
 
-        // 2. Append winre.wim to the directory
+        // Append winre.wim
         std::string candidate = winreDir;
         if (!candidate.empty() && candidate.back() != '\\')
             candidate += '\\';
@@ -130,62 +117,77 @@ namespace
         if (exists(candidate))
             return candidate;
 
-        std::cout << "  Primary path not accessible; scanning drives...\n";
-
-        // 3. Scan drive letters
+        // Fallback: scan drive letters
+        std::cout << "  Primary path not directly accessible; scanning drives...\n";
         return ScanDrivesForWim();
     }
 
     /**
-     * @brief Prepends `cmd.exe /k <command>` to startnet.cmd inside the mounted image.
+     * @brief Patches winpeshl.ini inside the mounted WinRE image.
+     *
+     * WinRE's startup is controlled by winpeshl.ini, NOT startnet.cmd.
+     * The default entry launches reagent.exe (the recovery GUI).
+     * We replace it with cmd.exe /k <command> so the terminal opens first.
+     * After the user types 'exit', the WinRE session ends and Windows resumes.
      *
      * @param mountDir Root of the mounted WinRE image.
-     * @param command  Command to inject.
+     * @param command  Command to run inside the WinRE shell.
      * @return true  File written successfully.
      * @return false File could not be opened for writing.
      */
-    bool InjectIntoStartnet(const std::string& mountDir, const std::string& command)
+    bool PatchWinpeshl(const std::string& mountDir, const std::string& command)
     {
-        std::string startnetPath = mountDir + "\\Windows\\System32\\startnet.cmd";
+        std::string iniPath = mountDir + "\\Windows\\System32\\winpeshl.ini";
 
-        // Read existing content (typically just "wpeinit")
-        std::string existing;
+        // Read current content for display
+        std::string original;
         {
-            std::ifstream in(startnetPath);
+            std::ifstream in(iniPath);
             if (in.is_open())
             {
                 std::ostringstream oss;
                 oss << in.rdbuf();
-                existing = oss.str();
+                original = oss.str();
             }
         }
 
-        // Print what we are about to write for transparency
-        std::cout << "  --- startnet.cmd (before) ---\n" << existing << "\n";
+        // Guard: already patched with the same command?
+        if (original.find("cmd.exe, /k " + command) != std::string::npos)
+        {
+            std::cout << "  winpeshl.ini already contains the target command. "
+                         "No change needed.\n";
+            return true;
+        }
 
-        std::ofstream out(startnetPath, std::ios::trunc);
+        std::cout << "  --- winpeshl.ini (before) ---\n"
+                  << (original.empty() ? "  (empty / not found)\n" : original)
+                  << "\n";
+
+        // Write patched version — replace entire file
+        std::ofstream out(iniPath, std::ios::trunc);
         if (!out.is_open())
+        {
+            std::cerr << "  [ERROR] Cannot open winpeshl.ini for writing.\n"
+                         "          Path: " << iniPath << "\n";
             return false;
+        }
 
-        out << "cmd.exe /k " << command << "\r\n";
-        out << existing;
-        out.close();
+        out << "[LaunchApps]\r\n";
+        out << "cmd.exe, /k " << command << "\r\n";
 
-        // Confirm
-        std::cout << "  --- startnet.cmd (after) ---\n"
-                  << "  cmd.exe /k " << command << "\n"
-                  << existing << "\n";
+        std::cout << "  --- winpeshl.ini (after) ---\n"
+                  << "  [LaunchApps]\n"
+                  << "  cmd.exe, /k " << command << "\n\n";
 
         return true;
     }
 
-    /**
-     * @brief Attempts to discard a failed DISM mount as a cleanup step.
-     */
+    /** @brief Best-effort: discards a failed DISM mount and removes the directory. */
     void DiscardMount(const std::string& mountDir)
     {
-        std::string cmd = "dism.exe /Unmount-Image /MountDir:\"" + mountDir + "\" /Discard";
-        RunVisible(cmd, 60'000);
+        RunVisible(
+            "dism.exe /Unmount-Image /MountDir:\"" + mountDir + "\" /Discard",
+            60'000);
         RemoveDirectoryA(mountDir.c_str());
     }
 } // anonymous namespace
@@ -197,14 +199,13 @@ namespace WinREPatcher
 {
     bool Patch(const std::string& winreDir, const std::string& command)
     {
-        // ── Resolve the .wim file path ────────────────────────────────────────
-        std::cout << "  Resolving winre.wim path from: " << winreDir << "\n";
+        // ── Resolve .wim path ─────────────────────────────────────────────────
+        std::cout << "  Resolving winre.wim from: " << winreDir << "\n";
         const std::string wimPath = ResolveWimPath(winreDir);
 
         if (wimPath.empty())
         {
-            std::cerr << "  [ERROR] winre.wim could not be found.\n"
-                         "          Searched the provided path and drives A-Z.\n";
+            std::cerr << "  [ERROR] winre.wim not found on any drive.\n";
             return false;
         }
 
@@ -217,8 +218,8 @@ namespace WinREPatcher
         std::cout << "  [1/3] Creating mount directory...\n";
         if (!CreateDirectoryA(mountDir.c_str(), nullptr))
         {
-            std::cerr << "  [ERROR] Could not create mount directory: "
-                      << mountDir << "  (code " << GetLastError() << ")\n";
+            std::cerr << "  [ERROR] Could not create mount directory "
+                      << "(code " << GetLastError() << ")\n";
             return false;
         }
 
@@ -232,22 +233,22 @@ namespace WinREPatcher
             " /Index:1"
             " /MountDir:\"" + mountDir + "\"";
 
-        std::cout << "  CMD: " << mountCmd << "\n\n";
-
         if (!RunVisible(mountCmd, 120'000))
         {
-            std::cerr << "\n  [ERROR] DISM mount failed (see output above).\n"
-                         "          Ensure the program is running as Administrator.\n";
+            std::cerr << "\n  [ERROR] DISM mount failed.\n";
             RemoveDirectoryA(mountDir.c_str());
             return false;
         }
         std::cout << "\n  Image mounted successfully.\n\n";
 
-        // ── Step 3: Patch startnet.cmd ────────────────────────────────────────
-        std::cout << "  [3/3] Patching startnet.cmd...\n";
-        if (!InjectIntoStartnet(mountDir, command))
+        // ── Step 3: Patch winpeshl.ini ────────────────────────────────────────
+        // winpeshl.ini controls what WinRE launches on boot (NOT startnet.cmd).
+        // The default entry starts reagent.exe (the recovery GUI); we replace it
+        // with cmd.exe so the terminal opens immediately.
+        std::cout << "  [3/3] Patching winpeshl.ini...\n";
+        if (!PatchWinpeshl(mountDir, command))
         {
-            std::cerr << "  [ERROR] Could not write startnet.cmd. Discarding mount.\n";
+            std::cerr << "  [ERROR] winpeshl.ini patch failed. Discarding mount.\n";
             DiscardMount(mountDir);
             return false;
         }
@@ -261,11 +262,9 @@ namespace WinREPatcher
             " /MountDir:\"" + mountDir + "\""
             " /Commit";
 
-        std::cout << "  CMD: " << unmountCmd << "\n\n";
-
         if (!RunVisible(unmountCmd, 120'000))
         {
-            std::cerr << "\n  [ERROR] DISM commit failed (see output above).\n"
+            std::cerr << "\n  [ERROR] DISM commit failed.\n"
                          "          Run 'dism /Cleanup-Mountpoints' to clean up.\n";
             RemoveDirectoryA(mountDir.c_str());
             return false;
