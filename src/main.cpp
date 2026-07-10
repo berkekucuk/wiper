@@ -64,7 +64,7 @@ int main()
     // ---- 3. Countdown ----
     std::cout << "  [3/4] Starting countdown...\n\n";
 
-    if (!Countdown::Run(5))
+    if (!Countdown::Run(10))
     {
         std::cout << "  Operation cancelled. System will not be restarted.\n\n";
         std::cout << "  Press any key to exit...\n";
