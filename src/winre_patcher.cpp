@@ -137,7 +137,7 @@ namespace
 
         out << "select disk "      << diskNumber      << "\r\n";
         out << "select partition " << partitionNumber << "\r\n";
-        out << "format fs=ntfs quick label=\"WIPED\"\r\n";
+        out << "format fs=ntfs quick\r\n";
         out << "exit\r\n";
 
         std::cout << "  wipe_script.txt written:\n"
