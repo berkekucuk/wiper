@@ -17,6 +17,7 @@ set(SOURCES
     src/winre_finder.cpp
     src/countdown.cpp
     src/reboot.cpp
+    src/winre_patcher.cpp
 )
 
 # ── Executable ────────────────────────────────────────────────────────────────

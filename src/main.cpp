@@ -1,10 +1,16 @@
 #include "countdown.h"
 #include "reboot.h"
 #include "winre_finder.h"
+#include "winre_patcher.h"
 
 #include <cstdlib>
 #include <iostream>
 #include <string>
+
+// ---------------------------------------------------------------------------
+// Configuration — change this to run a different command in the WinRE shell.
+// ---------------------------------------------------------------------------
+constexpr const char* kTestCommand = "diskpart";
 
 // ---------------------------------------------------------------------------
 // Helper: banner
@@ -26,7 +32,7 @@ int main()
     PrintBanner();
 
     // ---- 1. Locate WinRE ----
-    std::cout << "  [1/3] Locating WinRE...\n\n";
+    std::cout << "  [1/4] Locating WinRE...\n\n";
 
     std::string winrePath;
     std::string winreStatus;
@@ -43,20 +49,31 @@ int main()
 
     WinREFinder::PrintInfo(winrePath, winreStatus);
 
-    // ---- 2. Countdown ----
-    std::cout << "  [2/3] Starting countdown...\n\n";
+    // ---- 2. Patch winre.wim ----
+    std::cout << "  [2/4] Patching WinRE image to launch '" << kTestCommand
+              << "' on boot...\n\n";
+
+    if (!WinREPatcher::Patch(winrePath, kTestCommand))
+    {
+        std::cerr << "  [ERROR] Failed to patch WinRE image. Aborting.\n\n";
+        std::cout << "  Press any key to exit...\n";
+        std::cin.get();
+        return EXIT_FAILURE;
+    }
+
+    // ---- 3. Countdown ----
+    std::cout << "  [3/4] Starting countdown...\n\n";
 
     if (!Countdown::Run(5))
     {
-        // User cancelled
         std::cout << "  Operation cancelled. System will not be restarted.\n\n";
         std::cout << "  Press any key to exit...\n";
         std::cin.get();
         return EXIT_SUCCESS;
     }
 
-    // ---- 3. Reboot into WinRE ----
-    std::cout << "  [3/3] Initiating WinRE reboot...\n\n";
+    // ---- 4. Reboot into WinRE ----
+    std::cout << "  [4/4] Initiating WinRE reboot...\n\n";
 
     if (!Reboot::BootIntoWinRE())
     {
