@@ -1,4 +1,5 @@
 #include "countdown.h"
+#include "disk_detector.h"
 #include "reboot.h"
 #include "winre_finder.h"
 #include "winre_patcher.h"
@@ -9,11 +10,11 @@
 
 // ---------------------------------------------------------------------------
 // Wipe target configuration
-// Use Windows diskpart 'list disk' + 'list partition' to identify these values.
-// WARNING: The specified partition will be formatted (all data erased).
+// Use Windows diskpart 'list disk' + 'list partition' to identify these.
+// WARNING: The specified partition will be wiped (all data erased).
 // ---------------------------------------------------------------------------
 constexpr int kWipeDiskNumber      = 0;  // Disk 0  (single physical disk)
-constexpr int kWipePartitionNumber = 5;  // Partition 5  →  D: drive (~200 GB)
+constexpr int kWipePartitionNumber = 5;  // Partition 5  
 
 // ---------------------------------------------------------------------------
 // Helper: banner
@@ -21,12 +22,12 @@ constexpr int kWipePartitionNumber = 5;  // Partition 5  →  D: drive (~200 GB)
 static void PrintBanner()
 {
     std::cout << "\n";
-    std::cout << "  ====================================================\n";
-    std::cout << "         WinRE Boot Launcher  |  github.com/bkucuk    \n";
-    std::cout << "  ====================================================\n";
+    std::cout << "  ============================\n";
+    std::cout << "         WinRE Boot Launcher  \n";
+    std::cout << "  ============================\n";
     std::cout << "  Wipe target : Disk " << kWipeDiskNumber
               << "  /  Partition "       << kWipePartitionNumber << "\n";
-    std::cout << "  ====================================================\n";
+    std::cout << "  ============================\n";
     std::cout << "\n";
 }
 
@@ -38,7 +39,7 @@ int main()
     PrintBanner();
 
     // ---- 1. Locate WinRE ----
-    std::cout << "  [1/4] Locating WinRE...\n\n";
+    std::cout << "  [1/5] Locating WinRE...\n\n";
 
     std::string winrePath;
     std::string winreStatus;
@@ -55,12 +56,33 @@ int main()
 
     WinREFinder::PrintInfo(winrePath, winreStatus);
 
-    // ---- 2. Patch winre.wim ----
-    std::cout << "  [2/4] Patching WinRE image "
+    // ---- 2. Detect disk type ----
+    std::cout << "  [2/5] Detecting disk type for Disk " << kWipeDiskNumber << "...\n\n";
+
+    const DiskDetector::DiskType diskType = DiskDetector::Detect(kWipeDiskNumber);
+
+    std::cout << "  Disk " << kWipeDiskNumber << " : "
+              << DiskDetector::ToString(diskType) << "\n";
+
+    // Print the wipe strategy that will be used
+    const bool isSSD =
+        (diskType == DiskDetector::DiskType::SSD_SATA ||
+         diskType == DiskDetector::DiskType::SSD_NVME);
+
+    std::cout << "  Strategy    : "
+              << (isSSD ? "quick format + TRIM (SSD)"
+                        : "format /P:1 random overwrite (HDD)")
+              << "\n\n";
+
+    // ---- 3. Patch winre.wim ----
+    std::cout << "  [3/5] Patching WinRE image "
                  "(Disk " << kWipeDiskNumber
               << "  /  Partition " << kWipePartitionNumber << ")...\n\n";
 
-    if (!WinREPatcher::Patch(winrePath, kWipeDiskNumber, kWipePartitionNumber))
+    if (!WinREPatcher::Patch(winrePath,
+                             kWipeDiskNumber,
+                             kWipePartitionNumber,
+                             diskType))
     {
         std::cerr << "  [ERROR] Failed to patch WinRE image. Aborting.\n\n";
         std::cout << "  Press any key to exit...\n";
@@ -68,8 +90,8 @@ int main()
         return EXIT_FAILURE;
     }
 
-    // ---- 3. Countdown ----
-    std::cout << "  [3/4] Starting countdown...\n\n";
+    // ---- 4. Countdown ----
+    std::cout << "  [4/5] Starting countdown...\n\n";
 
     if (!Countdown::Run(10))
     {
@@ -79,8 +101,8 @@ int main()
         return EXIT_SUCCESS;
     }
 
-    // ---- 4. Reboot into WinRE ----
-    std::cout << "  [4/4] Initiating WinRE reboot...\n\n";
+    // ---- 5. Reboot into WinRE ----
+    std::cout << "  [5/5] Initiating WinRE reboot...\n\n";
 
     if (!Reboot::BootIntoWinRE())
     {

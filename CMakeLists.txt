@@ -18,6 +18,7 @@ set(SOURCES
     src/countdown.cpp
     src/reboot.cpp
     src/winre_patcher.cpp
+    src/disk_detector.cpp
 )
 
 # ── Executable ────────────────────────────────────────────────────────────────
