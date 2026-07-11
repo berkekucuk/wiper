@@ -9,12 +9,21 @@
 #include <string>
 
 // ---------------------------------------------------------------------------
-// Wipe target configuration
-// Use Windows diskpart 'list disk' + 'list partition' to identify these.
-// WARNING: The specified partition will be wiped (all data erased).
+// Configuration
 // ---------------------------------------------------------------------------
-constexpr int kWipeDiskNumber      = 0;  // Disk 0  (single physical disk)
-constexpr int kWipePartitionNumber = 5;  // Partition 5  
+
+// Wipe mode:
+//   WipeMode::PartitionWipe  →  silences a single partition (default, safe)
+//   WipeMode::FullDiskWipe   →  zeros the ENTIRE physical disk (irreversible,
+//                                system will shut down instead of rebooting)
+constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::PartitionWipe;
+
+// Target physical disk number (diskpart: 'list disk')
+constexpr int kWipeDiskNumber = 0;
+
+// Target partition number — used only in PartitionWipe mode
+// (diskpart: 'select disk N' then 'list partition')
+constexpr int kWipePartitionNumber = 5;  // Partition 5 → D: drive (~200 GB)
 
 // ---------------------------------------------------------------------------
 // Helper: banner
@@ -22,12 +31,24 @@ constexpr int kWipePartitionNumber = 5;  // Partition 5
 static void PrintBanner()
 {
     std::cout << "\n";
-    std::cout << "  ============================\n";
-    std::cout << "         WinRE Boot Launcher  \n";
-    std::cout << "  ============================\n";
-    std::cout << "  Wipe target : Disk " << kWipeDiskNumber
-              << "  /  Partition "       << kWipePartitionNumber << "\n";
-    std::cout << "  ============================\n";
+    std::cout << "  ===============\n";
+    std::cout << "       Wiper     \n";
+    std::cout << "  ===============\n";
+
+    if (kWipeMode == WinREPatcher::WipeMode::FullDiskWipe)
+    {
+        std::cout << "  Mode        : FULL DISK WIPE (clean all)\n";
+        std::cout << "  Target disk : Disk " << kWipeDiskNumber << "\n";
+        std::cout << "  WARNING     : ALL DATA on the disk will be erased!\n";
+    }
+    else
+    {
+        std::cout << "  Mode        : Partition wipe\n";
+        std::cout << "  Target      : Disk " << kWipeDiskNumber
+                  << "  /  Partition " << kWipePartitionNumber << "\n";
+    }
+
+    std::cout << "  ====================================================\n";
     std::cout << "\n";
 }
 
@@ -56,33 +77,40 @@ int main()
 
     WinREFinder::PrintInfo(winrePath, winreStatus);
 
-    // ---- 2. Detect disk type ----
-    std::cout << "  [2/5] Detecting disk type for Disk " << kWipeDiskNumber << "...\n\n";
+    // ---- 2. Detect disk type (PartitionWipe only) ----
+    DiskDetector::DiskType diskType = DiskDetector::DiskType::Unknown;
 
-    const DiskDetector::DiskType diskType = DiskDetector::Detect(kWipeDiskNumber);
+    if (kWipeMode == WinREPatcher::WipeMode::PartitionWipe)
+    {
+        std::cout << "  [2/5] Detecting disk type for Disk " << kWipeDiskNumber << "...\n\n";
 
-    std::cout << "  Disk " << kWipeDiskNumber << " : "
-              << DiskDetector::ToString(diskType) << "\n";
+        diskType = DiskDetector::Detect(kWipeDiskNumber);
 
-    // Print the wipe strategy that will be used
-    const bool isSSD =
-        (diskType == DiskDetector::DiskType::SSD_SATA ||
-         diskType == DiskDetector::DiskType::SSD_NVME);
+        const bool isSSD =
+            (diskType == DiskDetector::DiskType::SSD_SATA ||
+             diskType == DiskDetector::DiskType::SSD_NVME);
 
-    std::cout << "  Strategy    : "
-              << (isSSD ? "quick format + TRIM (SSD)"
-                        : "format /P:1 random overwrite (HDD)")
-              << "\n\n";
+        std::cout << "  Disk " << kWipeDiskNumber << " : "
+                  << DiskDetector::ToString(diskType) << "\n";
+        std::cout << "  Strategy    : "
+                  << (isSSD ? "quick format + TRIM (SSD)"
+                            : "format /P:1 random overwrite (HDD)")
+                  << "\n\n";
+    }
+    else
+    {
+        // FullDiskWipe: disk type irrelevant, clean all zeros everything
+        std::cout << "  [2/5] Disk type detection skipped (FullDiskWipe uses 'clean all').\n\n";
+    }
 
     // ---- 3. Patch winre.wim ----
-    std::cout << "  [3/5] Patching WinRE image "
-                 "(Disk " << kWipeDiskNumber
-              << "  /  Partition " << kWipePartitionNumber << ")...\n\n";
+    std::cout << "  [3/5] Patching WinRE image...\n\n";
 
     if (!WinREPatcher::Patch(winrePath,
                              kWipeDiskNumber,
                              kWipePartitionNumber,
-                             diskType))
+                             diskType,
+                             kWipeMode))
     {
         std::cerr << "  [ERROR] Failed to patch WinRE image. Aborting.\n\n";
         std::cout << "  Press any key to exit...\n";

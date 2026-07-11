@@ -357,11 +357,13 @@ namespace WinREPatcher
     bool Patch(const std::string&     winreDir,
                int                    diskNumber,
                int                    partitionNumber,
-               DiskDetector::DiskType diskType)
+               DiskDetector::DiskType diskType,
+               WipeMode               mode)
     {
         const bool isSSD =
             (diskType == DiskDetector::DiskType::SSD_SATA ||
              diskType == DiskDetector::DiskType::SSD_NVME);
+        const bool isFullDisk = (mode == WipeMode::FullDiskWipe);
 
         // ── Resolve winre.wim ─────────────────────────────────────────────────────
         std::cout << "  Resolving winre.wim from: " << winreDir << "\n";
@@ -377,9 +379,17 @@ namespace WinREPatcher
 
         std::cout << "  WinRE image : " << wimPath  << "\n";
         std::cout << "  Mount dir   : " << mountDir << "\n";
-        std::cout << "  Wipe target : Disk " << diskNumber
-                  << "  /  Partition " << partitionNumber << "\n";
-        std::cout << "  Disk type   : " << DiskDetector::ToString(diskType) << "\n\n";
+        if (isFullDisk)
+        {
+            std::cout << "  Wipe target : Disk " << diskNumber << " (FULL DISK)\n";
+            std::cout << "  Mode        : FullDiskWipe — diskpart clean all\n\n";
+        }
+        else
+        {
+            std::cout << "  Wipe target : Disk " << diskNumber
+                      << "  /  Partition " << partitionNumber << "\n";
+            std::cout << "  Disk type   : " << DiskDetector::ToString(diskType) << "\n\n";
+        }
 
         // ── Step 1: Create mount directory ────────────────────────────────────
         std::cout << "  [1/4] Creating mount directory...\n";
@@ -408,21 +418,79 @@ namespace WinREPatcher
         }
         std::cout << "\n  Image mounted.\n\n";
 
-        // ── Step 3: Embed scripts ───────────────────────────────────────────────
-        std::cout << "  [3/4] Embedding wipe scripts "
-                  << (isSSD ? "[SSD strategy]" : "[HDD strategy]") << "...\n\n";
-
-        bool ok =
-            WriteAssignScript(mountDir, diskNumber, partitionNumber) &&
-            WriteRemoveScript(mountDir, diskNumber, partitionNumber) &&
-            (!isSSD || WriteRetrimScript(mountDir))                  &&
-            WriteLaunchCmd   (mountDir, diskNumber, partitionNumber, diskType);
-
-        if (!ok)
+        // ── Step 3: Embed scripts ─────────────────────────────────────────────────
+        if (isFullDisk)
         {
-            std::cerr << "  [ERROR] Failed to write scripts. Discarding mount.\n";
-            DiscardMount(mountDir);
-            return false;
+            std::cout << "  [3/4] Embedding full-disk wipe scripts...\n\n";
+
+            // clean_disk_script.txt: select disk N → clean all
+            {
+                std::string p = mountDir + "\\Windows\\System32\\clean_disk_script.txt";
+                std::ofstream s(p, std::ios::trunc);
+                if (!s.is_open())
+                {
+                    std::cerr << "  [ERROR] Cannot create clean_disk_script.txt\n";
+                    DiscardMount(mountDir);
+                    return false;
+                }
+                s << "select disk " << diskNumber << "\r\n";
+                s << "clean all\r\n";
+                s << "exit\r\n";
+                std::cout << "  clean_disk_script.txt written:\n"
+                          << "    select disk " << diskNumber << "\n"
+                          << "    clean all\n"
+                          << "    exit\n\n";
+            }
+
+            // wipe_launch.cmd: diskpart /s clean_disk_script → shutdown
+            {
+                std::string p = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
+                std::ofstream s(p, std::ios::trunc);
+                if (!s.is_open())
+                {
+                    std::cerr << "  [ERROR] Cannot create wipe_launch.cmd\n";
+                    DiscardMount(mountDir);
+                    return false;
+                }
+                s << "@echo off\r\n";
+                s << "echo.\r\n";
+                s << "echo  ====================================================\r\n";
+                s << "echo   WinRE Full Disk Wipe  ^|  Disk " << diskNumber << "\r\n";
+                s << "echo   ALL DATA will be permanently erased!\r\n";
+                s << "echo  ====================================================\r\n";
+                s << "echo.\r\n";
+                s << "echo  [1/2] Running diskpart clean all...\r\n";
+                s << "echo  This may take 30-60 minutes for large drives.\r\n";
+                s << "echo.\r\n";
+                s << "diskpart /s X:\\Windows\\System32\\clean_disk_script.txt\r\n";
+                s << "echo.\r\n";
+                s << "echo  [2/2] Disk wiped. Shutting down in 5 seconds...\r\n";
+                // shutdown: Windows is gone, reboot would fail
+                s << "ping 127.0.0.1 -n 6 > nul\r\n";
+                s << "wpeutil shutdown\r\n";
+                std::cout << "  wipe_launch.cmd written\n"
+                             "    Phase 1: diskpart clean all\n"
+                             "    Phase 2: wpeutil shutdown\n\n";
+            }
+        }
+        else
+        {
+            // PartitionWipe — drive-letter-based format strategy
+            std::cout << "  [3/4] Embedding partition wipe scripts "
+                      << (isSSD ? "[SSD strategy]" : "[HDD strategy]") << "...\n\n";
+
+            bool ok =
+                WriteAssignScript(mountDir, diskNumber, partitionNumber) &&
+                WriteRemoveScript(mountDir, diskNumber, partitionNumber) &&
+                (!isSSD || WriteRetrimScript(mountDir))                  &&
+                WriteLaunchCmd   (mountDir, diskNumber, partitionNumber, diskType);
+
+            if (!ok)
+            {
+                std::cerr << "  [ERROR] Failed to write scripts. Discarding mount.\n";
+                DiscardMount(mountDir);
+                return false;
+            }
         }
 
         // ── Step 4: Patch winpeshl.ini ─────────────────────────────────────────

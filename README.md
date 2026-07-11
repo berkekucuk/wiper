@@ -1,97 +1,298 @@
-# winre-boot
+## Proje Nedir?
 
-A C++17 console application that locates the Windows Recovery Environment (WinRE),
-patches its boot script to open a terminal running a specified command, then reboots
-the system directly into that shell.
+`wiper`, Windows çalışırken çift tıklanabilen ve sistem yeniden başladığında
+hedef diski **otomatik olarak** silen bir araçtır. Kullanıcıdan herhangi bir
+ek giriş beklenmez — her şey programın kendisi tarafından yönetilir.
 
-## Features
+İki modu vardır:
 
-- Detects WinRE location via `reagentc /info` with Registry fallback
-- Mounts `winre.wim` via DISM and patches `startnet.cmd` to inject a `cmd.exe` shell
-- The injected command (e.g. `diskpart`) runs automatically on WinRE boot
-- After closing the shell, execution falls through to the standard WinRE GUI
-- Runs a **5-second countdown** that can be cancelled by pressing any key
-- Reboots into WinRE via `reagentc /boottore`
+- **PartitionWipe** — belirli bir partition'ı siler (varsayılan)
+- **FullDiskWipe** — tüm fiziksel diski sıfırlar (işletim sistemi dahil)
 
-## Requirements
+---
 
-| Tool | Version |
-|------|---------|
-| Windows | 10 / 11 |
-| [w64devkit](https://github.com/skeeto/w64devkit) | 1.x (GCC 13+) |
-| CMake | 3.20 or later |
-| Ninja | bundled with w64devkit |
+## Neden Böyle Bir Şeye İhtiyaç Var?
 
-> **Important:** The program must be run as **Administrator** (required by DISM and `reagentc`).
+Bir bilgisayarın diskini tamamen silmek istediğini düşün.
+Bunu **Windows açıkken yapamazsın:**
 
-## Build
+- Windows kendi dosyalarını RAM'e yüklemiş halde çalışıyor
+- C: sürücüsündeki dosyalar işletim sistemi tarafından kilitli
+- `format C:` komutunu denersen Windows reddeder
 
-Open the w64devkit terminal **as Administrator** and navigate to the project directory:
+Çözüm: **sistemi başka bir ortamdan başlatmak** ve ana diski o ortamdan silmek.
+
+---
+
+## Çözüm Alternatifleri
+
+### Linux Live USB
+
+USB'den bir Linux başlatıp `shred` veya `dd` ile disk silinebilir.
+
+**Sorunlar:** Kullanıcı USB hazırlamak zorunda, boot sırasında manuel seçim
+yapması gerekir, yazılım tarafından otomatikleştirilemez.
+
+### WinPE (Windows Preinstallation Environment)
+
+Microsoft'un geliştirici araçlarıyla oluşturulan minimal bir Windows ortamıdır.
+Windows kurulumu ve disk hazırlama için kullanılır.
+
+**Sorunlar:** Windows ADK (~2 GB) indirilip ISO oluşturulması gerekir.
+Kullanıcı tarafından kendiniz oluşturulduğu için Secure Boot imzası yoktur.
+Yine manuel müdahale gerektirir.
+
+### WinRE (Windows Recovery Environment) — Seçilen Yöntem
+
+WinRE, her Windows kurulumunun içine **gömülü** olarak gelen mini bir kurtarma
+işletim sistemidir. Disk üzerinde gizli bir partition'da `winre.wim` adıyla
+saklanır. Sistem açılırken sorun çıkarsa veya "Gelişmiş Başlangıç Seçenekleri"
+menüsünden girilirse, Windows bu dosyayı RAM'e yükler ve oradan çalıştırır.
+
+**WinRE neden seçildi:**
+
+| | Linux USB | WinPE | WinRE |
+|---|---|---|---|
+| Kullanıcı hazırlığı | ✅ USB gerekir | ✅ ADK gerekir | ❌ Zaten kurulu |
+| Secure Boot uyumlu | ❌ | ❌ | ✅ MS imzalı |
+| Yazılımdan tetiklenebilir | ❌ | ❌ | ✅ `reagentc /boottore` |
+| Kullanıcı müdahalesi | ✅ Gerekir | ✅ Gerekir | ❌ Gerekmez |
+
+WinRE her makinede hazır, Microsoft tarafından imzalı ve yazılım üzerinden
+tetiklenebilir. Bu nedenle tek tıkla çalışan bir araç için en uygun seçenek.
+
+---
+
+## Nasıl Çalışır?
+
+`wiper.exe` Windows'ta yönetici (Administrator) olarak çalışır ve
+şu adımları izler:
+
+### Windows'ta (EXE çalışırken)
+
+**[1/5] WinRE'yi bul**
+
+`reagentc /info` komutuyla `winre.wim` dosyasının diskteki tam yolu bulunur.
+
+**[2/5] Disk tipini tespit et** *(sadece PartitionWipe modunda)*
+
+Windows IOCTL API'si üzerinden hedef diskin HDD mi, SATA SSD mi,
+yoksa NVMe SSD mi olduğu anlaşılır. Bu bilgi, uygun silme komutunu
+seçmek için kullanılır.
+
+**[3/5] WinRE imajını yamala**
+
+`winre.wim` DISM ile geçici bir klasöre açılır (mount edilir). İçine
+silme scriptleri gömülür ve WinRE'nin başlangıç ayar dosyası
+(`winpeshl.ini`) değiştirilerek açılışta doğrudan bu scriptlerin
+çalışması sağlanır. Ardından değişiklikler `winre.wim`'e geri yazılır.
+
+**[4/5] Geri sayım**
+
+10 saniye geri sayım başlar. Bu sürede herhangi bir tuşa basılırsa
+işlem iptal edilir.
+
+**[5/5] Yeniden başlat**
+
+`reagentc /boottore` ile BCD'ye "bir sonraki açılışta WinRE'ye gir"
+bayrağı eklenir. Ardından sistem yeniden başlatılır.
+
+---
+
+### WinRE'de (sistem yeniden başlayınca)
+
+WinRE `winre.wim`'den RAM'e yüklenir. `winpeshl.ini` okunur ve
+bizim script dosyamız çalıştırılır:
+
+**PartitionWipe:**
+```
+[1/3] diskpart → hedef partition'a geçici Z: harfi atandı
+[2/3] format Z: → partition silindi
+        HDD  → format /FS:NTFS /P:1  (1 tur rastgele veri, ~15-30 dk)
+        SSD  → format /FS:NTFS /Q    (hızlı format + TRIM, ~5-10 sn)
+[3/3] diskpart → Z: harfi kaldırıldı, TRIM gönderildi (SSD ise)
+wpeutil reboot → Windows normal açılır
+```
+
+**FullDiskWipe:**
+```
+[1/2] diskpart → clean all  (tüm disk sıfırlanır, MBR/GPT dahil, ~30-60 dk)
+[2/2] wpeutil shutdown      → sistem kapanır
+                              (Windows artık yok, reboot anlamsız)
+```
+
+---
+
+## Silme Modları
+
+`main.cpp` içindeki tek satırla mod değiştirilir:
+
+```cpp
+constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::PartitionWipe;  // varsayılan
+// veya:
+constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::FullDiskWipe;
+```
+
+| | PartitionWipe | FullDiskWipe |
+|---|---|---|
+| Hedef | Tek partition | Tüm fiziksel disk |
+| Komut | `format /P:1` / `format /Q` | `diskpart clean all` |
+| Drive letter gerekir mi | ✅ (Z: geçici) | ❌ |
+| Disk tipi tespiti | ✅ | ❌ (gereksiz) |
+| MBR/GPT silinir mi | ❌ | ✅ |
+| Sistem bitince | Reboots → Windows açılır | Shutdown → sistem kapanır |
+| Süre (200 GB) | 5 sn – 30 dk | 30-60 dk |
+
+---
+
+## Teknik Kararlar ve Trade-off'lar
+
+### Neden startnet.cmd değil winpeshl.ini?
+
+`winpeshl.ini` WinRE'nin gerçek başlangıç noktasıdır. `startnet.cmd` ise
+sadece WinPE'de çalışır — WinRE'de `winpeshl.ini` onu bypass eder.
+Bu fark deneme yanılmayla keşfedildi.
+
+### Neden ATA Secure Erase kullanılmadı?
+
+SATA SSD'ler için en güvenilir yöntemdir — firmware tüm hücreleri sıfırlar.
+Fakat çoğu BIOS önyükleme öncesi güvenlik komutu olarak diski "dondurur"
+(frozen state). Donmuş diske Secure Erase gönderilemez; çözümek için
+üretici aracı (Samsung Magician vb.) veya uyku/devam döngüsü gerekir.
+Her ortamda güvenilir çalışmadığı için tercih edilmedi.
+
+### Neden NVMe Format komutu kullanılmadı?
+
+NVMe Format (Admin opcode 0x80) kriptografik sıfırlama yapar ve çok hızlıdır.
+Fakat WinRE içinden göndermek `IOCTL_STORAGE_PROTOCOL_COMMAND` kullanan
+ayrı bir C++ binary gerektirir. Bu, projeye ikinci bir alt proje eklemek
+demektir. Karmaşıklığa değmedi.
+
+### Neden format tüm disk için kullanılmadı?
+
+`format` komutu yalnızca partition seviyesinde çalışır — tüm disk için her
+partition'ı tek tek formatlamak gerekir ve MBR/GPT sektörlerine dokunamaz.
+Tüm disk için `diskpart clean all` çok daha temiz bir çözüm.
+
+### Neden diskpart format yerine CMD format kullanıldı?
+
+`diskpart` içindeki `format` komutu `/P:N` (rastgele veri) parametresini
+desteklemez. Windows'un `format.exe` aracı destekler. Bu yüzden
+partition seçimi diskpart ile, silme ise format.exe ile yapıldı.
+
+---
+
+## Kalıcı ve Geçici Değişiklikler
+
+| Değişiklik | Kalıcı mı? |
+|------------|-----------|
+| `winre.wim` içindeki scriptler | ✅ Kalıcı |
+| Silinen veri | ✅ Kalıcı — geri alınamaz |
+| BCD bootsequence | ❌ 1 boot sonra otomatik silinir |
+| DISM mount klasörü | ❌ Commit sonrası silinir |
+
+---
+
+## Gereksinimler
+
+### Çalışma Ortamı
+
+| Gereksinim | Detay |
+|------------|-------|
+| **İşletim Sistemi** | Windows 10 / 11 |
+| **Yetki** | Administrator (Yönetici) |
+| **WinRE** | Etkin olmalı (`reagentc /info` ile kontrol edilebilir) |
+| **Secure Boot** | Sorun yok — WinRE Microsoft tarafından imzalı |
+| **BitLocker** | Recovery partition şifresiz; WinRE, TPM üzerinden C:'yi çözebilir |
+
+### Derleme Ortamı
+
+| Araç | Versiyon |
+|------|----------|
+| [w64devkit](https://github.com/skeeto/w64devkit) | GCC 13+ (Ninja dahil) |
+| CMake | 3.20 veya üzeri |
+
+---
+
+## Derleme (Build)
+
+w64devkit terminalini **Yönetici olarak** aç, proje klasörüne git:
 
 ```sh
-# Configure (Ninja generator, GCC)
+# Yapılandır (Ninja, GCC, Release modu)
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
-# Build
+# Derle
 cmake --build build
 ```
 
-Output: `build\winre-boot.exe`
+Çıktı: `build\wiper.exe`
 
-## Usage
+Değişiklik yapıp tekrar derlemek için:
 
+```sh
+cmake --build build --clean-first
 ```
-winre-boot.exe
+
+---
+
+## Kullanım
+
+```sh
+# Yönetici terminalinde:
+build\wiper.exe
 ```
 
-The application performs the following steps:
+Program şu adımları izler:
 
-1. Locates WinRE and prints its path and status
-2. Mounts `winre.wim` and patches `startnet.cmd` to inject `cmd.exe /k <command>`
-3. Runs a 5-second countdown (press any key to cancel)
-4. Reboots the system into WinRE → terminal opens automatically
+1. WinRE konumunu tespit eder ve ekrana basar
+2. Disk tipini tespit eder (HDD / SSD)
+3. `winre.wim` içine silme scriptlerini gömer
+4. 10 saniyelik geri sayım başlar — herhangi bir tuşa basarak iptal edilebilir
+5. Sistem WinRE üzerinden yeniden başlatılır
 
-## Changing the Command
+---
 
-Edit the constant at the top of [`src/main.cpp`](src/main.cpp):
+## Konfigürasyon
+
+`src/main.cpp` içindeki üç sabiti düzenle:
 
 ```cpp
-constexpr const char* kTestCommand = "diskpart";
+// Silme modu
+constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::PartitionWipe;
+// Alternatif: WipeMode::FullDiskWipe (tüm diski sıfırlar)
+
+// Hedef disk numarası (diskpart: 'list disk')
+constexpr int kWipeDiskNumber = 0;
+
+// Hedef partition numarası — sadece PartitionWipe modunda kullanılır
+// (diskpart: 'select disk N' → 'list partition')
+constexpr int kWipePartitionNumber = 5;
 ```
 
-Replace `"diskpart"` with any command you want to run in the WinRE shell, e.g.:
-- `"sfc /scannow"` — system file checker
-- `"chkdsk C: /f"` — disk check
-- `"cmd"` — plain interactive shell
+Değişiklikten sonra tekrar derlenmesi gerekir:
 
-## Project Structure
-
-```
-winre-boot/
-├── include/
-│   ├── winre_finder.h    # WinRE locator interface
-│   ├── countdown.h       # Countdown interface
-│   ├── reboot.h          # Reboot interface
-│   └── winre_patcher.h   # WinRE image patcher interface
-├── src/
-│   ├── main.cpp          # Entry point (kTestCommand lives here)
-│   ├── winre_finder.cpp  # WinRE detection (reagentc + Registry)
-│   ├── countdown.cpp     # Countdown timer with key detection
-│   ├── reboot.cpp        # reagentc /boottore + ExitWindowsEx
-│   └── winre_patcher.cpp # DISM mount → startnet.cmd patch → commit
-└── CMakeLists.txt        # Build system
+```sh
+cmake --build build --clean-first
 ```
 
-## Technical Notes
+### Disk ve Partition Numarasını Bulmak
 
-- **WinRE detection:** `reagentc /info` output is parsed first; if that fails,
-  `HKLM\SOFTWARE\Microsoft\RecoveryEnvironment` is read from the Registry.
-- **Patching:** DISM mounts `winre.wim` at `%TEMP%\winre_mount_<PID>`,
-  `cmd.exe /k <command>` is prepended to `startnet.cmd`, then the image is committed.
-- **startnet.cmd flow:** injected command → user closes shell → `wpeinit` → WinRE GUI.
-- **Modification is permanent.** There is no undo. If DISM fails mid-operation,
-  run `dism /Cleanup-Mountpoints` to clean up stale mounts.
-- **Key detection:** `_kbhit()` with 100 ms polling; 1 second = 10 polling cycles.
-- **Shutdown privilege:** `SE_SHUTDOWN_NAME` is granted via `AdjustTokenPrivileges`.
-- **Restart:** `ExitWindowsEx(EWX_REBOOT | EWX_FORCE)` is attempted first;
-  `InitiateSystemShutdownExA` is used as a fallback.
+```
+diskpart
+list disk          → disk numarasını öğren
+select disk 0
+list partition     → partition numarasını öğren
+exit
+```
+
+---
+
+## DISM Mount Temizliği
+
+DISM işlemi yarıda kesilirse mount klasörü geride kalabilir.
+Bunu temizlemek için:
+
+```sh
+dism /Cleanup-Mountpoints
+```

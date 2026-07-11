@@ -5,38 +5,46 @@
 #include <string>
 
 /**
- * @brief Module that patches a WinRE image (winre.wim) to automatically wipe
- *        a specific disk partition on the next WinRE boot — no user input required.
+ * @brief Wipe strategy to apply when WinRE boots.
  *
- * The wipe strategy is selected based on the detected disk type:
- *   - HDD / Unknown  → format /FS:NTFS /P:1  (one pass of random data)
- *   - SSD (SATA/NVMe)→ format /FS:NTFS /Q    (quick format)
- *                      + diskpart retrim      (TRIM signal to SSD controller)
+ *  PartitionWipe  (default)
+ *      Targets a single partition by number.
+ *      Assigns a temporary drive letter, runs format, removes the letter.
+ *      Strategy adapts to disk type:
+ *        HDD/Unknown  → format /FS:NTFS /P:1  (1-pass random overwrite)
+ *        SSD          → format /FS:NTFS /Q    (quick format + TRIM)
+ *      After the wipe the system reboots back into Windows.
  *
- * Files embedded inside winre.wim (accessible at X:\ on WinRE boot):
- *   Windows\System32\assign_script.txt  — diskpart: assign letter Z:
- *   Windows\System32\remove_script.txt  — diskpart: remove letter Z:
- *   Windows\System32\retrim_script.txt  — diskpart: retrim (SSD only)
- *   Windows\System32\wipe_launch.cmd    — main orchestrator batch
- *
- * winpeshl.ini is updated to launch wipe_launch.cmd on WinRE start.
+ *  FullDiskWipe
+ *      Targets the entire physical disk.
+ *      Uses diskpart 'clean all' to zero every sector (disk-level operation).
+ *      No drive letter assignment required.
+ *      Disk type makes no difference — zeros work on both HDD and SSD.
+ *      After the wipe the system shuts down (Windows no longer exists).
  */
 namespace WinREPatcher
 {
+    enum class WipeMode
+    {
+        PartitionWipe,  ///< Wipe one partition (default)
+        FullDiskWipe    ///< Zero the entire physical disk (irreversible)
+    };
+
     /**
-     * @brief Patches the WinRE image to automatically wipe the specified
-     *        partition on the next WinRE boot using the optimal strategy for
-     *        the detected disk type.
+     * @brief Patches the WinRE image to automatically wipe on the next
+     *        WinRE boot according to the selected WipeMode.
      *
      * @param winreDir        WinRE directory path (from WinREFinder).
-     * @param diskNumber      Physical disk number  (e.g. 0).
-     * @param partitionNumber Partition number      (e.g. 5).
-     * @param diskType        Detected disk type    (from DiskDetector::Detect).
+     * @param diskNumber      Physical disk number (e.g. 0).
+     * @param partitionNumber Target partition number — used only in PartitionWipe.
+     * @param diskType        Detected disk type   — used only in PartitionWipe.
+     * @param mode            Wipe mode (defaults to PartitionWipe).
      * @return true  Patch applied and committed successfully.
      * @return false An error occurred; winre.wim was not modified.
      */
     bool Patch(const std::string&     winreDir,
                int                    diskNumber,
                int                    partitionNumber,
-               DiskDetector::DiskType diskType);
+               DiskDetector::DiskType diskType,
+               WipeMode               mode = WipeMode::PartitionWipe);
 }
