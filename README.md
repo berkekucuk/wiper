@@ -143,6 +143,18 @@ constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::FullDiskWip
 | Sistem bitince | Reboots → Windows açılır | Shutdown → sistem kapanır |
 | Süre (200 GB) | 5 sn – 30 dk | 30-60 dk |
 
+### `clean all` Askeri Düzeyde Güvenlik Sağlar mı?
+
+`diskpart clean all` komutu diskin başından sonuna kadar her sektöre sıfır (0x00) yazar. Bunun güvenliği disk tipine göre değişir:
+
+**HDD (Manyetik Disk) İçin: ÇOK GÜVENLİ**
+Manyetik plakalardaki her sektör fiziksel olarak sıfırlanır. Modern yüksek yoğunluklu disklerde tek bir geçiş (single pass) sıfır yazmak, veriyi kurtarılamaz hale getirmek için yeterlidir. Askeri (DoD) standartları bile modern HDD'ler için bunu yeterli bulur.
+
+**SSD (NVMe / SATA) İçin: GÜNLÜK KULLANIM İÇİN YETERLİ, ASKERİ DÜZEY DEĞİL**
+SSD kontrolcüleri, NAND bellek ömrünü uzatmak için yazma işlemlerini sürekli farklı fiziksel hücrelere dağıtır (Wear Leveling) ve görünmeyen gizli yedek alanlar barındırır (Over-provisioning).
+Siz `clean all` ile sıfır yazsanız bile, SSD bunu farklı hücrelere yazabilir ve eski verilerinizin bir kısmı o gizli yedek alanlarda veya henüz "çöp toplaması" (garbage collection) yapılmamış bloklarda fiziksel olarak kalabilir.
+Sıradan veri kurtarma yazılımları bu veriyi göremez, günlük kullanım için güvenlidir. Ancak diskin donanım seviyesinde incelenebileceği askeri standartlar (NIST 800-88) için yeterli değildir (Bunun için ATA Secure Erase veya NVMe Format komutları şarttır).
+
 ---
 
 ## Teknik Kararlar ve Trade-off'lar
