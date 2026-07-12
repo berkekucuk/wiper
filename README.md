@@ -155,6 +155,20 @@ SSD kontrolcüleri, NAND bellek ömrünü uzatmak için yazma işlemlerini süre
 Siz `clean all` ile sıfır yazsanız bile, SSD bunu farklı hücrelere yazabilir ve eski verilerinizin bir kısmı o gizli yedek alanlarda veya henüz "çöp toplaması" (garbage collection) yapılmamış bloklarda fiziksel olarak kalabilir.
 Sıradan veri kurtarma yazılımları bu veriyi göremez, günlük kullanım için güvenlidir. Ancak diskin donanım seviyesinde incelenebileceği askeri standartlar (NIST 800-88) için yeterli değildir (Bunun için ATA Secure Erase veya NVMe Format komutları şarttır).
 
+### Alternatif Silme Araçları (format vs cipher vs sdelete vs clean all)
+
+Windows ekosisteminde bilinen farklı güvenli silme araçları vardır. Bunların kullanım amaçları ve çalıştıkları seviyeler birbirinden farklıdır:
+
+**Partition (Sürücü Harfi) Seviyesinde Çalışanlar:**
+1. **`format /P:N` (Partition'ı Yok Etmek İçin)**: Tüm partition'ı içindeki her şeyle birlikte yok eder ve üzerine rastgele veri yazarak yeni boş bir dosya sistemi kurar. Projemizdeki `PartitionWipe` modunda tam olarak bu yerleşik araç kullanılmıştır.
+2. **`cipher /w` (Sadece Boş Alanı Temizlemek İçin)**: Partition'ı yok etmez, mevcut dosyalara dokunmaz. Yalnızca daha önceden silinmiş dosyaların izini kaybettirmek için "boş alanı" güvenli şekilde siler. Amacımız her şeyi (işletim sistemi dahil) yok etmek olduğu için projemize uygun değildir.
+3. **`sdelete` (İsviçre Çakısı)**: Sysinternals aracıdır. Hem `cipher`'ın boş alan temizleme işini hem de tek tek dosya/klasör silme işini yapar. Ancak Windows'ta yerleşik (built-in) değildir. WinRE'ye `.exe` olarak dışarıdan gömülmesi gerekir (ekstra bağımlılık). Üstelik o da yazılım tabanlı olduğu için SSD'lerdeki wear-leveling (aşınma dengeleme) kısıtlamalarına takılır.
+
+**Fiziksel Disk Seviyesinde Çalışanlar:**
+4. **`diskpart clean all` (Her Şeyi Dümdüz Etmek İçin)**: Diğer üçünün aksine sürücü harfleriyle veya dosya sistemleriyle ilgilenmez. Doğrudan donanımsal fiziksel diske (Disk 0) odaklanır. İşletim sistemi, MBR, GPT, EFI ve Kurtarma bölümleri dahil ne var ne yoksa tek hamlede sıfırlar.
+
+Sonuç olarak projemizde sıfır bağımlılık ilkesiyle; sadece belirli bir bölümü silmek için `format` (PartitionWipe), işletim sistemi dahil diskin tamamını silmek için ise `clean all` (FullDiskWipe) kullanılmıştır. `sdelete` ve `cipher`'a ihtiyaç yoktur.
+
 ---
 
 ## Teknik Kararlar ve Trade-off'lar
