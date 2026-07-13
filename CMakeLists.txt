@@ -18,6 +18,9 @@ set(SOURCES
     src/countdown.cpp
     src/reboot.cpp
     src/winre_patcher.cpp
+    src/wim_resolver.cpp
+    src/dism_utils.cpp
+    src/winre_script_generator.cpp
     src/disk_detector.cpp
 )
 

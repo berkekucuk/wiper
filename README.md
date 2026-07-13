@@ -105,20 +105,41 @@ WinRE `winre.wim`'den RAM'e yüklenir. `winpeshl.ini` okunur ve
 bizim script dosyamız çalıştırılır:
 
 **PartitionWipe:**
-```
-[1/3] diskpart → hedef partition'a geçici Z: harfi atandı
-[2/3] format Z: → partition silindi
-        HDD  → format /FS:NTFS /P:1  (1 tur rastgele veri, ~15-30 dk)
-        SSD  → format /FS:NTFS /Q    (hızlı format + TRIM, ~5-10 sn)
-[3/3] diskpart → Z: harfi kaldırıldı, TRIM gönderildi (SSD ise)
-wpeutil reboot → Windows normal açılır
-```
+
+**HDD İçin (Rastgele Veri ile Üzerine Yazma):**
+Sadece hedeflenen bölüme rastgele veri yazarak güvenli silme sağlar.
+1. `diskpart` → İşlem yapabilmek için hedef partition'a geçici bir sürücü harfi (`Z:`) atanır.
+2. `format Z: /FS:NTFS /P:1 /Y` → Partition'daki tüm alanın üzerine 1 tur rastgele veri yazılarak eski veriler yok edilir (~15-30 dk).
+3. `diskpart` → İşlem bitince geçici `Z:` harfi kaldırılır.
+4. `wpeutil reboot` → İşletim sistemi zarar görmediği için sistem yeniden başlatılarak normal Windows'a dönülür.
+
+**SSD İçin (Hızlı Format ve TRIM):**
+SSD ömrünü (TBW) tüketmemek ve wear-leveling sorunlarına takılmamak için rastgele veri yerine donanımsal temizlik kullanılır.
+1. `diskpart` → Hedef partition'a geçici bir sürücü harfi (`Z:`) atanır.
+2. `format Z: /FS:NTFS /Q /Y` → Hızlı format (Quick Format) atılarak dosya tablosu saniyeler içinde sıfırlanır.
+3. `diskpart` → `Z:` harfi kaldırılırken `retrim` komutu tetiklenir (SSD kontrolcüsüne partition'ın tamamen boşaldığı donanımsal olarak bildirilir, temizliği donanım kendi içinde yapar).
+4. `wpeutil reboot` → Sistem yeniden başlatılarak normal Windows'a dönülür.
 
 **FullDiskWipe:**
-```
-[1/2] diskpart → clean all  (tüm disk sıfırlanır, MBR/GPT dahil, ~30-60 dk)
-[2/2] wpeutil shutdown      → sistem kapanır
-                              (Windows artık yok, reboot anlamsız)
+
+**HDD İçin Seçilen Yöntem: `clean all` (NIST 800-88 Standardı)**
+1. `diskpart clean all` → Diskin ilk sektöründen son sektörüne kadar her yere "0" yazar. MBR/GPT ve işletim sistemi dahil her şeyi sıfırlar (~30-60 dk).
+2. `wpeutil shutdown` → İşletim sistemi kalmadığı için sistem tamamen kapatılır (reboot anlamsızdır).
+*(Neden eski DoD standartları gibi rastgele veri yazılmadı? Günümüz yüksek yoğunluklu HDD'lerinde tek geçiş sıfır yazmak veriyi donanımsal olarak (mikroskopla bile) kurtarılamaz hale getirdiği için güncel NIST standartlarında yeterli kabul edilir.)*
+
+**HDD İçin Alternatif Teori: Dinamik Bölümleme ve Toplu Format**
+*(Karşılaştırma amacıyla belgelenmiştir, projede kullanılmaz)*
+Eğer sıfır yerine mutlaka rastgele veri yazılmak istenseydi mimari şu olurdu: `clean` (diski ham yap) → `create partition primary` (tüm diski kaplayan bölüm aç) → `format /P:1` (tüm diske rastgele veri yaz) → `clean` (tekrar ham bırak). Ancak bu mimari (limitler ve partition hataları nedeniyle) çok kırılgandır ve modern HDD'lerde gereksizdir. Bu yüzden stabil olan `clean all` seçilmiştir.
+
+**SSD İçin Seçilen Yöntem: `clean` + TRIM**
+SSD'lerde `clean all` (sıfır yazmak) veya `format /P:1` (rastgele veri yazmak) iki büyük soruna yol açar:
+- **Ömür Tüketimi (TBW):** Terabaytlarca veriyi boş yere yazmak SSD bellek hücrelerinin ömrünü ciddi şekilde tüketir.
+- **Güvenlik İllüzyonu (Wear-Leveling):** Siz tüm sektörlere sıfır yazdığınızı sansanız da SSD kontrolcüsü bunu diske dağıtır ve eski verinin bir kısmı gizli yedek alanlarda fiziksel olarak kalabilir.
+
+Bu yüzden SSD'ler için en doğru yazılımsal yaklaşım donanımın kendi mekanizmasını kullanmaktır:
+1. `diskpart clean` → MBR/GPT partition tablosu 1 saniyede silinir, disk tamamen ham (RAW) hale getirilir.
+2. TRIM Komutu → SSD kontrolcüsüne tüm sektörlerin boş olduğu ve donanımsal olarak sıfırlanması gerektiği bildirilir. SSD bu temizliği kendi içinde (yıpratmadan) yapar.
+3. `wpeutil shutdown` → Sistem tamamen kapatılır.
 ```
 
 ---
@@ -136,12 +157,11 @@ constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::FullDiskWip
 | | PartitionWipe | FullDiskWipe |
 |---|---|---|
 | Hedef | Tek partition | Tüm fiziksel disk |
-| Komut | `format /P:1` / `format /Q` | `diskpart clean all` |
+| Komut | `format /P:1 (HDD)` / `format /Q (SDD)` | `clean all` (HDD) / `clean`+TRIM (SSD) |
 | Drive letter gerekir mi | ✅ (Z: geçici) | ❌ |
-| Disk tipi tespiti | ✅ | ❌ (gereksiz) |
+| Disk tipi tespiti | ✅ | ✅  |
 | MBR/GPT silinir mi | ❌ | ✅ |
 | Sistem bitince | Reboots → Windows açılır | Shutdown → sistem kapanır |
-| Süre (200 GB) | 5 sn – 30 dk | 30-60 dk |
 
 ### `clean all` Askeri Düzeyde Güvenlik Sağlar mı?
 
@@ -165,10 +185,9 @@ Windows ekosisteminde bilinen farklı güvenli silme araçları vardır. Bunlar�
 3. **`sdelete` (İsviçre Çakısı)**: Sysinternals aracıdır. Hem `cipher`'ın boş alan temizleme işini hem de tek tek dosya/klasör silme işini yapar. Ancak Windows'ta yerleşik (built-in) değildir. WinRE'ye `.exe` olarak dışarıdan gömülmesi gerekir (ekstra bağımlılık). Üstelik o da yazılım tabanlı olduğu için SSD'lerdeki wear-leveling (aşınma dengeleme) kısıtlamalarına takılır.
 
 **Fiziksel Disk Seviyesinde Çalışanlar:**
-4. **`diskpart clean all` (Her Şeyi Dümdüz Etmek İçin)**: Diğer üçünün aksine sürücü harfleriyle veya dosya sistemleriyle ilgilenmez. Doğrudan donanımsal fiziksel diske (Disk 0) odaklanır. İşletim sistemi, MBR, GPT, EFI ve Kurtarma bölümleri dahil ne var ne yoksa tek hamlede sıfırlar.
+4. **`diskpart clean all` (Her Şeyi Sıfırlarla Doldurmak İçin)**: Diğer üçünün aksine sürücü harfleriyle veya dosya sistemleriyle ilgilenmez. Doğrudan donanımsal fiziksel diske (Disk 0) odaklanır. İşletim sistemi, MBR, GPT, EFI ve Kurtarma bölümleri dahil ne var ne yoksa tek hamlede sıfırlar. Sadece "0" yazar, rastgele veri yazmaz.
 
-Sonuç olarak projemizde sıfır bağımlılık ilkesiyle; sadece belirli bir bölümü silmek için `format` (PartitionWipe), işletim sistemi dahil diskin tamamını silmek için ise `clean all` (FullDiskWipe) kullanılmıştır. `sdelete` ve `cipher`'a ihtiyaç yoktur.
-
+Sonuç olarak projemizde sıfır bağımlılık ilkesiyle; sadece belirli bir bölümü silmek için `format` (PartitionWipe), işletim sistemi dahil diskin tamamını silmek için ise yerleşik ve en stabil araç olan `clean all` (HDD) ve `clean`+TRIM (SSD) kullanılmıştır.
 ---
 
 ## Teknik Kararlar ve Trade-off'lar
@@ -198,7 +217,8 @@ demektir. Karmaşıklığa değmedi.
 
 `format` komutu yalnızca partition seviyesinde çalışır — tüm disk için her
 partition'ı tek tek formatlamak gerekir ve MBR/GPT sektörlerine dokunamaz.
-Tüm disk için `diskpart clean all` çok daha temiz bir çözüm.
+Dinamik bölümleme ile etrafından dolaşmak (tek devasa partition açmak) mümkün olsa da hata payı yüksektir.
+Bu yüzden tüm disk için `diskpart clean all` çok daha stabil, güncel standartlara (NIST) uygun ve temiz bir çözümdür.
 
 ### Neden diskpart format yerine CMD format kullanıldı?
 
@@ -219,6 +239,43 @@ partition seçimi diskpart ile, silme ise format.exe ile yapıldı.
 
 ---
 
+## Konfigürasyon
+
+`src/main.cpp` içindeki üç sabiti düzenle:
+
+```cpp
+// Silme modu
+constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::PartitionWipe;
+// Alternatif: WipeMode::FullDiskWipe (tüm diski sıfırlar)
+
+// Hedef disk numarası (diskpart: 'list disk')
+constexpr int kWipeDiskNumber = 0;
+
+// Hedef partition numarası — sadece PartitionWipe modunda kullanılır
+// (diskpart: 'select disk N' → 'list partition')
+constexpr int kWipePartitionNumber = 5;
+```
+
+### Disk ve Partition Numarasını Bulmak
+
+```
+diskpart
+list disk          → disk numarasını öğren
+select disk 0
+list partition     → partition numarasını öğren
+exit
+```
+
+---
+
+## DISM Mount Temizliği
+
+DISM işlemi yarıda kesilirse mount klasörü geride kalabilir.
+Bunu temizlemek için:
+
+```sh
+dism /Cleanup-Mountpoints
+```
 ## Gereksinimler
 
 ### Çalışma Ortamı
@@ -231,12 +288,9 @@ partition seçimi diskpart ile, silme ise format.exe ile yapıldı.
 | **Secure Boot** | Sorun yok — WinRE Microsoft tarafından imzalı |
 | **BitLocker** | Recovery partition şifresiz; WinRE, TPM üzerinden C:'yi çözebilir |
 
-### Derleme Ortamı
+### Derleme Aracı
 
-| Araç | Versiyon |
-|------|----------|
-| [w64devkit](https://github.com/skeeto/w64devkit) | GCC 13+ (Ninja dahil) |
-| CMake | 3.20 veya üzeri |
+[w64devkit](https://github.com/skeeto/w64devkit)
 
 ---
 
@@ -276,49 +330,3 @@ Program şu adımları izler:
 3. `winre.wim` içine silme scriptlerini gömer
 4. 10 saniyelik geri sayım başlar — herhangi bir tuşa basarak iptal edilebilir
 5. Sistem WinRE üzerinden yeniden başlatılır
-
----
-
-## Konfigürasyon
-
-`src/main.cpp` içindeki üç sabiti düzenle:
-
-```cpp
-// Silme modu
-constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::PartitionWipe;
-// Alternatif: WipeMode::FullDiskWipe (tüm diski sıfırlar)
-
-// Hedef disk numarası (diskpart: 'list disk')
-constexpr int kWipeDiskNumber = 0;
-
-// Hedef partition numarası — sadece PartitionWipe modunda kullanılır
-// (diskpart: 'select disk N' → 'list partition')
-constexpr int kWipePartitionNumber = 5;
-```
-
-Değişiklikten sonra tekrar derlenmesi gerekir:
-
-```sh
-cmake --build build --clean-first
-```
-
-### Disk ve Partition Numarasını Bulmak
-
-```
-diskpart
-list disk          → disk numarasını öğren
-select disk 0
-list partition     → partition numarasını öğren
-exit
-```
-
----
-
-## DISM Mount Temizliği
-
-DISM işlemi yarıda kesilirse mount klasörü geride kalabilir.
-Bunu temizlemek için:
-
-```sh
-dism /Cleanup-Mountpoints
-```

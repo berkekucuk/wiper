@@ -8,6 +8,8 @@
 #include <iostream>
 #include <string>
 
+using namespace std;
+
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
@@ -23,33 +25,33 @@ constexpr int kWipeDiskNumber = 0;
 
 // Target partition number — used only in PartitionWipe mode
 // (diskpart: 'select disk N' then 'list partition')
-constexpr int kWipePartitionNumber = 5;  // Partition 5 → D: drive (~200 GB)
+constexpr int kWipePartitionNumber = 4;  // Partition 5 → D: drive (~200 GB)
 
 // ---------------------------------------------------------------------------
 // Helper: banner
 // ---------------------------------------------------------------------------
 static void PrintBanner()
 {
-    std::cout << "\n";
-    std::cout << "  ===============\n";
-    std::cout << "       Wiper     \n";
-    std::cout << "  ===============\n";
+    cout << "\n";
+    cout << "  ===============\n";
+    cout << "       Wiper     \n";
+    cout << "  ===============\n";
 
     if (kWipeMode == WinREPatcher::WipeMode::FullDiskWipe)
     {
-        std::cout << "  Mode        : FULL DISK WIPE (clean all)\n";
-        std::cout << "  Target disk : Disk " << kWipeDiskNumber << "\n";
-        std::cout << "  WARNING     : ALL DATA on the disk will be erased!\n";
+        cout << "  Mode        : FULL DISK WIPE\n";
+        cout << "  Target disk : Disk " << kWipeDiskNumber << "\n";
+        cout << "  WARNING     : ALL DATA on the disk will be erased!\n";
     }
     else
     {
-        std::cout << "  Mode        : Partition wipe\n";
-        std::cout << "  Target      : Disk " << kWipeDiskNumber
+        cout << "  Mode        : Partition wipe\n";
+        cout << "  Target      : Disk " << kWipeDiskNumber
                   << "  /  Partition " << kWipePartitionNumber << "\n";
     }
 
-    std::cout << "  ====================================================\n";
-    std::cout << "\n";
+    cout << "  ====================================================\n";
+    cout << "\n";
 }
 
 // ---------------------------------------------------------------------------
@@ -60,51 +62,52 @@ int main()
     PrintBanner();
 
     // ---- 1. Locate WinRE ----
-    std::cout << "  [1/5] Locating WinRE...\n\n";
+    cout << "  [1/5] Locating WinRE...\n\n";
 
-    std::string winrePath;
-    std::string winreStatus;
+    string winrePath;
+    string winreStatus;
 
     if (!WinREFinder::FindLocation(winrePath, winreStatus))
     {
-        std::cerr << "  [ERROR] WinRE location could not be determined.\n"
+        cerr << "  [ERROR] WinRE location could not be determined.\n"
                      "          WinRE may not be installed or enabled,\n"
                      "          or the program may not be running as Administrator.\n\n";
-        std::cout << "  Press any key to exit...\n";
-        std::cin.get();
+        cout << "  Press any key to exit...\n";
+        cin.get();
         return EXIT_FAILURE;
     }
 
     WinREFinder::PrintInfo(winrePath, winreStatus);
 
-    // ---- 2. Detect disk type (PartitionWipe only) ----
-    DiskDetector::DiskType diskType = DiskDetector::DiskType::Unknown;
+    // ---- 2. Detect disk type ----
+    cout << "  [2/5] Detecting disk type for Disk " << kWipeDiskNumber << "...\n\n";
+
+    DiskDetector::DiskType diskType = DiskDetector::Detect(kWipeDiskNumber);
+
+    const bool isSSD =
+        (diskType == DiskDetector::DiskType::SSD_SATA ||
+         diskType == DiskDetector::DiskType::SSD_NVME);
+
+    cout << "  Disk " << kWipeDiskNumber << " : "
+              << DiskDetector::ToString(diskType) << "\n";
 
     if (kWipeMode == WinREPatcher::WipeMode::PartitionWipe)
     {
-        std::cout << "  [2/5] Detecting disk type for Disk " << kWipeDiskNumber << "...\n\n";
-
-        diskType = DiskDetector::Detect(kWipeDiskNumber);
-
-        const bool isSSD =
-            (diskType == DiskDetector::DiskType::SSD_SATA ||
-             diskType == DiskDetector::DiskType::SSD_NVME);
-
-        std::cout << "  Disk " << kWipeDiskNumber << " : "
-                  << DiskDetector::ToString(diskType) << "\n";
-        std::cout << "  Strategy    : "
+        cout << "  Strategy    : "
                   << (isSSD ? "quick format + TRIM (SSD)"
                             : "format /P:1 random overwrite (HDD)")
                   << "\n\n";
     }
     else
     {
-        // FullDiskWipe: disk type irrelevant, clean all zeros everything
-        std::cout << "  [2/5] Disk type detection skipped (FullDiskWipe uses 'clean all').\n\n";
+        cout << "  Strategy    : "
+                  << (isSSD ? "clean + TRIM (SSD)"
+                            : "clean all (HDD)")
+                  << "\n\n";
     }
 
     // ---- 3. Patch winre.wim ----
-    std::cout << "  [3/5] Patching WinRE image...\n\n";
+    cout << "  [3/5] Patching WinRE image...\n\n";
 
     if (!WinREPatcher::Patch(winrePath,
                              kWipeDiskNumber,
@@ -112,31 +115,31 @@ int main()
                              diskType,
                              kWipeMode))
     {
-        std::cerr << "  [ERROR] Failed to patch WinRE image. Aborting.\n\n";
-        std::cout << "  Press any key to exit...\n";
-        std::cin.get();
+        cerr << "  [ERROR] Failed to patch WinRE image. Aborting.\n\n";
+        cout << "  Press any key to exit...\n";
+        cin.get();
         return EXIT_FAILURE;
     }
 
     // ---- 4. Countdown ----
-    std::cout << "  [4/5] Starting countdown...\n\n";
+    cout << "  [4/5] Starting countdown...\n\n";
 
     if (!Countdown::Run(10))
     {
-        std::cout << "  Operation cancelled. System will not be restarted.\n\n";
-        std::cout << "  Press any key to exit...\n";
-        std::cin.get();
+        cout << "  Operation cancelled. System will not be restarted.\n\n";
+        cout << "  Press any key to exit...\n";
+        cin.get();
         return EXIT_SUCCESS;
     }
 
     // ---- 5. Reboot into WinRE ----
-    std::cout << "  [5/5] Initiating WinRE reboot...\n\n";
+    cout << "  [5/5] Initiating WinRE reboot...\n\n";
 
     if (!Reboot::BootIntoWinRE())
     {
-        std::cerr << "\n  [ERROR] Reboot could not be initiated.\n\n";
-        std::cout << "  Press any key to exit...\n";
-        std::cin.get();
+        cerr << "\n  [ERROR] Reboot could not be initiated.\n\n";
+        cout << "  Press any key to exit...\n";
+        cin.get();
         return EXIT_FAILURE;
     }
 
