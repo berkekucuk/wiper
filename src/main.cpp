@@ -25,7 +25,7 @@ constexpr int kWipeDiskNumber = 0;
 
 // Target partition number — used only in PartitionWipe mode
 // (diskpart: 'select disk N' then 'list partition')
-constexpr int kWipePartitionNumber = 4;  // Partition 5 → D: drive (~200 GB)
+constexpr int kWipePartitionNumber = 2; 
 
 // ---------------------------------------------------------------------------
 // Helper: banner
@@ -94,15 +94,15 @@ int main()
     if (kWipeMode == WinREPatcher::WipeMode::PartitionWipe)
     {
         cout << "  Strategy    : "
-                  << (isSSD ? "quick format + TRIM (SSD)"
+                  << (isSSD ? "quick format + explicit TRIM (SSD)" 
                             : "format /P:1 random overwrite (HDD)")
                   << "\n\n";
     }
     else
     {
         cout << "  Strategy    : "
-                  << (isSSD ? "clean + TRIM (SSD)"
-                            : "clean all (HDD)")
+                  << (isSSD ? "clean + explicit TRIM (SSD)"       
+                            : "diskpart clean all (HDD)")        
                   << "\n\n";
     }
 

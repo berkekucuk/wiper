@@ -1,8 +1,10 @@
 #include "winre_script_generator.h"
+#include "disk_detector.h"
 
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <string>
 
 using namespace std;
 
@@ -24,11 +26,6 @@ namespace
         out << "assign letter=Z\r\n";
         out << "exit\r\n";
 
-        cout << "  assign_script.txt written:\n"
-                  << "    select disk "      << diskNumber      << "\n"
-                  << "    select partition " << partitionNumber << "\n"
-                  << "    assign letter=Z\n"
-                  << "    exit\n\n";
         return true;
     }
 
@@ -48,29 +45,6 @@ namespace
         out << "remove letter=Z\r\n";
         out << "exit\r\n";
 
-        cout << "  remove_script.txt written:\n"
-                  << "    select disk "      << diskNumber      << "\n"
-                  << "    select partition " << partitionNumber << "\n"
-                  << "    remove letter=Z\n"
-                  << "    exit\n\n";
-        return true;
-    }
-
-    bool WriteRetrimScript(const string& mountDir)
-    {
-        string path = mountDir + "\\Windows\\System32\\retrim_script.txt";
-        ofstream out(path, ios::trunc);
-        if (!out.is_open())
-        {
-            cerr << "  [ERROR] Cannot create retrim_script.txt\n";
-            return false;
-        }
-
-        out << "select volume Z\r\n";
-        out << "retrim\r\n";
-        out << "exit\r\n";
-
-        cout << "  retrim_script.txt written (select volume Z → retrim → exit)\n\n";
         return true;
     }
 
@@ -97,22 +71,23 @@ namespace
         out << "echo   WinRE Secure Wipe  ^|  Disk " << diskNumber
             << "  Partition "   << partitionNumber    << "\r\n";
         out << "echo   Strategy : "
-            << (isSSD ? "SSD (quick format + TRIM)" : "HDD (format /P:1 random)")
+            << (isSSD ? "SSD (quick format + explicit TRIM)" : "HDD (format /P:1 random overwrite)")
             << "\r\n";
         out << "echo  ====================================================\r\n";
         out << "echo.\r\n";
+        
         out << "echo  [1/3] Assigning temporary drive letter Z:...\r\n";
         out << "diskpart /s X:\\Windows\\System32\\assign_script.txt\r\n";
         out << "echo.\r\n";
 
         if (isSSD)
         {
-            out << "echo  [2/3] Quick format (SSD — no unnecessary write cycles)...\r\n";
+            out << "echo  [2/3] Quick format + Explicit TRIM (SSD safe wipe)...\r\n";
             out << "echo.\r\n";
             out << "format Z: /FS:NTFS /Q /Y\r\n";
+            out << "defrag Z: /L\r\n";  
             out << "echo.\r\n";
-            out << "echo  [3/3] Sending TRIM to SSD controller + removing drive letter...\r\n";
-            out << "diskpart /s X:\\Windows\\System32\\retrim_script.txt\r\n";
+            out << "echo  [3/3] Removing temporary drive letter Z:...\r\n";
         }
         else
         {
@@ -123,6 +98,7 @@ namespace
             out << "echo.\r\n";
             out << "echo  [3/3] Removing temporary drive letter Z:...\r\n";
         }
+        
         out << "diskpart /s X:\\Windows\\System32\\remove_script.txt\r\n";
         out << "echo.\r\n";
 
@@ -130,31 +106,19 @@ namespace
         out << "ping 127.0.0.1 -n 6 > nul\r\n";
         out << "wpeutil reboot\r\n";
 
-        cout << "  wipe_launch.cmd written\n"
-                  << "    Strategy  : "
-                  << (isSSD ? "SSD (format /Q + TRIM)" : "HDD (format /P:1)")
-                  << "\n"
-                  << "    Phase 1   : diskpart assign Z:\n"
-                  << "    Phase 2   : " << (isSSD ? "format /Q /Y" : "format /P:1 /Y") << "\n"
-                  << "    Phase 3   : " << (isSSD ? "retrim + " : "") << "remove Z: → reboot\n\n";
         return true;
     }
 }
 
 namespace WinREScriptGenerator
-{
+{   
     bool GeneratePartitionWipeScripts(const string& mountDir,
-                                      int diskNumber,
-                                      int partitionNumber,
-                                      DiskDetector::DiskType diskType)
-    {
-        const bool isSSD =
-            (diskType == DiskDetector::DiskType::SSD_SATA ||
-             diskType == DiskDetector::DiskType::SSD_NVME);
-
+                                  int diskNumber,
+                                  int partitionNumber,
+                                  DiskDetector::DiskType diskType)
+    {    
         if (!WriteAssignScript(mountDir, diskNumber, partitionNumber)) return false;
         if (!WriteRemoveScript(mountDir, diskNumber, partitionNumber)) return false;
-        if (isSSD && !WriteRetrimScript(mountDir)) return false;
         if (!WritePartitionLaunchCmd(mountDir, diskNumber, partitionNumber, diskType)) return false;
 
         return true;
@@ -211,33 +175,35 @@ namespace WinREScriptGenerator
         }
         else
         {
-            // SSD: clean -> create temp partition -> format /Q -> retrim -> clean
+            // SSD: clean -> create temp partition -> format /Q -> defrag /L -> clean
             {
                 string p = mountDir + "\\Windows\\System32\\prepare_ssd_script.txt";
                 ofstream s(p, ios::trunc);
-                if (!s.is_open()) return false;
+                if (!s.is_open())
+                {
+                    cerr << "  [ERROR] Cannot create prepare_ssd_script.txt\n";
+                    return false;
+                }
                 s << "select disk " << diskNumber << "\r\n";
                 s << "clean\r\n";
                 s << "create partition primary\r\n";
                 s << "assign letter=Z\r\n";
                 s << "exit\r\n";
             }
-            {
-                string p = mountDir + "\\Windows\\System32\\retrim_ssd_script.txt";
-                ofstream s(p, ios::trunc);
-                if (!s.is_open()) return false;
-                s << "select volume Z\r\n";
-                s << "retrim\r\n";
-                s << "exit\r\n";
-            }
+                        
             {
                 string p = mountDir + "\\Windows\\System32\\final_clean_script.txt";
                 ofstream s(p, ios::trunc);
-                if (!s.is_open()) return false;
+                if (!s.is_open())
+                {
+                    cerr << "  [ERROR] Cannot create final_clean_script.txt\n";
+                    return false;
+                }
                 s << "select disk " << diskNumber << "\r\n";
                 s << "clean\r\n";
                 s << "exit\r\n";
             }
+            
             {
                 string p = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
                 ofstream s(p, ios::trunc);
@@ -256,12 +222,14 @@ namespace WinREScriptGenerator
                 s << "echo  [1/3] Preparing SSD (removing partitions ^& assigning Z:)...\r\n";
                 s << "diskpart /s X:\\Windows\\System32\\prepare_ssd_script.txt\r\n";
                 s << "echo.\r\n";
-                s << "echo  [2/3] Sending TRIM to entire SSD capacity...\r\n";
+                s << "echo  [2/3] Quick format + Explicit TRIM (wipes NAND cells)...\r\n";
                 s << "format Z: /FS:NTFS /Q /Y\r\n";
-                s << "diskpart /s X:\\Windows\\System32\\retrim_ssd_script.txt\r\n";
+                s << "defrag Z: /L\r\n"; 
                 s << "echo.\r\n";
-                s << "echo  [3/3] Final cleanup. Shutting down in 5 seconds...\r\n";
+                s << "echo  [3/3] Final cleanup (returning disk to RAW state)...\r\n";
                 s << "diskpart /s X:\\Windows\\System32\\final_clean_script.txt\r\n";
+                s << "echo.\r\n";
+                s << "echo  Wipe complete. Shutting down in 5 seconds...\r\n";
                 s << "ping 127.0.0.1 -n 6 > nul\r\n";
                 s << "wpeutil shutdown\r\n";
             }
