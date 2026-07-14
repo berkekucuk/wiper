@@ -74,7 +74,7 @@ tetiklenebilir. Bu nedenle tek tıkla çalışan bir araç için en uygun seçen
 
 `reagentc /info` komutuyla `winre.wim` dosyasının diskteki tam yolu bulunur.
 
-**[2/5] Disk tipini tespit et** *(sadece PartitionWipe modunda)*
+**[2/5] Disk tipini tespit et** 
 
 Windows IOCTL API'si üzerinden hedef diskin HDD mi, SATA SSD mi,
 yoksa NVMe SSD mi olduğu anlaşılır. Bu bilgi, uygun silme komutunu
@@ -104,43 +104,89 @@ bayrağı eklenir. Ardından sistem yeniden başlatılır.
 WinRE `winre.wim`'den RAM'e yüklenir. `winpeshl.ini` okunur ve
 bizim script dosyamız çalıştırılır:
 
+---
+
 **PartitionWipe:**
 
 **HDD İçin (Rastgele Veri ile Üzerine Yazma):**
 Sadece hedeflenen bölüme rastgele veri yazarak güvenli silme sağlar.
-1. `diskpart` → İşlem yapabilmek için hedef partition'a geçici bir sürücü harfi (`Z:`) atanır.
-2. `format Z: /FS:NTFS /P:1 /Y` → Partition'daki tüm alanın üzerine 1 tur rastgele veri yazılarak eski veriler yok edilir (~15-30 dk).
-3. `diskpart` → İşlem bitince geçici `Z:` harfi kaldırılır.
-4. `wpeutil reboot` → İşletim sistemi zarar görmediği için sistem yeniden başlatılarak normal Windows'a dönülür.
+1. `diskpart` → Diskpart aracı açılır.
+2. `select disk 0` → Hedef disk seçilir.
+3. `select partition 5` → Hedef partition seçilir.
+4. `assign letter=Z` → İşlem yapabilmek için hedef partition'a geçici bir sürücü harfi (Z:) atanır.
+5. `exit` → Diskpart'tan çıkılarak CMD ortamına dönülür.
+6. `format Z: /FS:NTFS /P:1 /Y` → Partition'daki tüm alanın üzerine 1 tur sıfır, ardından 1 tur rastgele veri yazılarak eski veriler yok edilir.
+7. `diskpart` → Diskpart tekrar açılır.
+8. `select disk 0` → Hedef disk seçilir.
+9. `select partition 5` → Hedef partition seçilir.
+10. `remove letter=Z` → İşlem bitince geçici Z: harfi kaldırılır.
+11. `exit` → Diskpart'tan çıkılır.
+12. `wpeutil reboot` → İşletim sistemi zarar görmediği için sistem yeniden başlatılarak normal Windows'a dönülür.
 
 **SSD İçin (Hızlı Format ve TRIM):**
 SSD ömrünü (TBW) tüketmemek ve wear-leveling sorunlarına takılmamak için rastgele veri yerine donanımsal temizlik kullanılır.
-1. `diskpart` → Hedef partition'a geçici bir sürücü harfi (`Z:`) atanır.
-2. `format Z: /FS:NTFS /Q /Y` → Hızlı format (Quick Format) atılarak dosya tablosu saniyeler içinde sıfırlanır.
-3. `diskpart` → `Z:` harfi kaldırılırken `retrim` komutu tetiklenir (SSD kontrolcüsüne partition'ın tamamen boşaldığı donanımsal olarak bildirilir, temizliği donanım kendi içinde yapar).
-4. `wpeutil reboot` → Sistem yeniden başlatılarak normal Windows'a dönülür.
+1. `diskpart` → Diskpart aracı açılır.
+2. `select disk 0` → Hedef disk seçilir.
+3. `select partition 5` → Hedef partition seçilir.
+4. `assign letter=Z` → İşlem yapabilmek için hedef partition'a geçici bir sürücü harfi (Z:) atanır.
+5. `exit` → Diskpart'tan çıkılarak CMD ortamına dönülür.
+6. `format Z: /FS:NTFS /Q /Y` → Hızlı format (Quick Format) uygulanarak dosya tablosu saniyeler içinde sıfırlanır. (Not: Modern Windows/WinRE ortamlarında NTFS hızlı formatı, arka planda otomatik olarak TRIM/UNMAP sinyali de gönderir.)
+7. `defrag Z: /L` → (Güvenlik Ağı) WinRE'nin minimal yapısında otomatik TRIM'in kaçırılma ihtimaline karşı, Windows'un yerleşik aracıyla TRIM/UNMAP komutu açıkça ve zorunlu olarak tekrar tetiklenir. Bu, SSD kontrolcüsüne blokların boş olduğunu kesin olarak bildirir.
+8. `diskpart` → Diskpart tekrar açılır.
+9. `select disk 0` → Hedef disk seçilir.
+10. `select partition 5` → Hedef partition seçilir.
+11. `remove letter=Z` → İşlem bitince geçici Z: harfi kaldırılır.
+12. `exit` → Diskpart'tan çıkılır.
+13. `wpeutil reboot` → Sistem yeniden başlatılarak normal Windows'a dönülür.
+
+---
 
 **FullDiskWipe:**
 
 **HDD İçin Seçilen Yöntem: `clean all` (NIST 800-88 Standardı)**
-1. `diskpart clean all` → Diskin ilk sektöründen son sektörüne kadar her yere "0" yazar. MBR/GPT ve işletim sistemi dahil her şeyi sıfırlar (~30-60 dk).
-2. `wpeutil shutdown` → İşletim sistemi kalmadığı için sistem tamamen kapatılır (reboot anlamsızdır).
-*(Neden eski DoD standartları gibi rastgele veri yazılmadı? Günümüz yüksek yoğunluklu HDD'lerinde tek geçiş sıfır yazmak veriyi donanımsal olarak (mikroskopla bile) kurtarılamaz hale getirdiği için güncel NIST standartlarında yeterli kabul edilir.)*
+1. `diskpart` → Diskpart aracı açılır.
+2. `select disk 0` → Hedef disk seçilir.
+3. `clean all` → Diskin ilk sektöründen son sektörüne kadar her yere "0" yazar. MBR/GPT ve işletim sistemi dahil her şeyi sıfırlar (~30-60 dk).
+4. `exit` → Diskpart'tan çıkılır.
+5. `wpeutil shutdown` → İşletim sistemi kalmadığı için sistem tamamen kapatılır (reboot anlamsızdır).
+(Neden eski DoD standartları gibi rastgele veri yazılmadı? Günümüz yüksek yoğunluklu HDD'lerinde tek geçiş sıfır yazmak veriyi donanımsal olarak (mikroskopla bile) kurtarılamaz hale getirdiği için güncel NIST standartlarında yeterli kabul edilir.)
 
 **HDD İçin Alternatif Teori: Dinamik Bölümleme ve Toplu Format**
-*(Karşılaştırma amacıyla belgelenmiştir, projede kullanılmaz)*
-Eğer sıfır yerine mutlaka rastgele veri yazılmak istenseydi mimari şu olurdu: `clean` (diski ham yap) → `create partition primary` (tüm diski kaplayan bölüm aç) → `format /P:1` (tüm diske rastgele veri yaz) → `clean` (tekrar ham bırak). Ancak bu mimari (limitler ve partition hataları nedeniyle) çok kırılgandır ve modern HDD'lerde gereksizdir. Bu yüzden stabil olan `clean all` seçilmiştir.
+(Karşılaştırma amacıyla belgelenmiştir, projede kullanılmaz)
+Eğer sıfır yerine mutlaka rastgele veri yazılmak istenseydi mimari şu olurdu:
+1. `diskpart` → Diskpart aracı açılır.
+2. `select disk 0` → Hedef disk seçilir.
+3. `clean` → Disk ham (RAW) hale getirilir, tüm partition tablosu silinir.
+4. `create partition primary` → Diskin tamamını kaplayan tek bir partition oluşturulur.
+5. `assign letter=Z` → Format komutu için geçici sürücü harfi atanır.
+6. `exit` → Diskpart'tan çıkılarak CMD ortamına dönülür.
+7. `format Z: /FS:NTFS /P:1 /Y` → Tüm diske 1 tur sıfır + 1 tur rastgele veri yazılır.
+8. `diskpart` → Diskpart tekrar açılır.
+9. `select disk 0` → Hedef disk seçilir.
+10. `clean` → Geçici partition tablosu silinir, disk tekrar ham (RAW) bırakılır.
+11. `exit` → Diskpart'tan çıkılır.
+12. `wpeutil shutdown` → Sistem tamamen kapatılır.
+Ancak bu mimari (limitler ve partition hataları nedeniyle) çok kırılgandır ve modern HDD'lerde gereksizdir. Bu yüzden stabil olan clean all seçilmiştir.
 
-**SSD İçin Seçilen Yöntem: `clean` + TRIM**
+**SSD İçin Seçilen Yöntem: Partition Oluştur, Hızlı Formatla (TRIM Tetikle) ve Temizle.**
 SSD'lerde `clean all` (sıfır yazmak) veya `format /P:1` (rastgele veri yazmak) iki büyük soruna yol açar:
 - **Ömür Tüketimi (TBW):** Terabaytlarca veriyi boş yere yazmak SSD bellek hücrelerinin ömrünü ciddi şekilde tüketir.
 - **Güvenlik İllüzyonu (Wear-Leveling):** Siz tüm sektörlere sıfır yazdığınızı sansanız da SSD kontrolcüsü bunu diske dağıtır ve eski verinin bir kısmı gizli yedek alanlarda fiziksel olarak kalabilir.
 
 Bu yüzden SSD'ler için en doğru yazılımsal yaklaşım donanımın kendi mekanizmasını kullanmaktır:
-1. `diskpart clean` → MBR/GPT partition tablosu 1 saniyede silinir, disk tamamen ham (RAW) hale getirilir.
-2. TRIM Komutu → SSD kontrolcüsüne tüm sektörlerin boş olduğu ve donanımsal olarak sıfırlanması gerektiği bildirilir. SSD bu temizliği kendi içinde (yıpratmadan) yapar.
-3. `wpeutil shutdown` → Sistem tamamen kapatılır.
-```
+1. `diskpart` → Diskpart aracı açılır.
+2. `select disk 0` → Hedef disk seçilir.
+3. `clean` → MBR/GPT partition tablosu 1 saniyede silinir, disk tamamen ham (RAW) hale getirilir.
+4. `create partition primary` → Diskin tamamını kaplayan geçici bir partition oluşturulur.
+5. `assign letter=Z` → Hızlı format ve TRIM komutlarını çalıştırabilmek için geçici sürücü harfi atanır.
+6. `exit` → Diskpart'tan çıkılarak CMD ortamına dönülür.
+7. `format Z: /FS:NTFS /Q /Y` → Hızlı format uygulanır. (Not: Modern Windows/WinRE ortamlarında NTFS hızlı formatı, arka planda otomatik olarak TRIM/UNMAP sinyali de gönderir.)
+8. `defrag Z: /L` → (Güvenlik Ağı) PartitionWipe moduyla aynı felsefeyle, WinRE'nin minimal yapısında otomatik TRIM'in kaçırılma ihtimaline karşı TRIM/UNMAP komutu açıkça tekrar tetiklenir. SSD kontrolcüsü bu sinyali alınca tüm NAND hücrelerini donanımsal olarak sıfırlar. Bu işlem saniyeler sürer ve SSD ömrünü (TBW) tüketmez.
+9. `diskpart` → Diskpart tekrar açılır.
+10. `select disk 0` → Hedef disk seçilir.
+11. `clean` → Geçici partition tablosu silinir ve disk tekrar ham (RAW) bırakılır.
+12. `exit` → Diskpart'tan çıkılır.
+13. `wpeutil shutdown` → Sistem tamamen kapatılır.
 
 ---
 
