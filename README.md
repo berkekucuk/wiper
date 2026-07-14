@@ -33,30 +33,29 @@ USB'den bir Linux başlatıp `shred` veya `dd` ile disk silinebilir.
 **Sorunlar:** Kullanıcı USB hazırlamak zorunda, boot sırasında manuel seçim
 yapması gerekir, yazılım tarafından otomatikleştirilemez.
 
-### WinPE (Windows Preinstallation Environment)
-
-Microsoft'un geliştirici araçlarıyla oluşturulan minimal bir Windows ortamıdır.
-Windows kurulumu ve disk hazırlama için kullanılır.
-
-**Sorunlar:** Windows ADK (~2 GB) indirilip ISO oluşturulması gerekir.
-Kullanıcı tarafından kendiniz oluşturulduğu için Secure Boot imzası yoktur.
-Yine manuel müdahale gerektirir.
-
 ### WinRE (Windows Recovery Environment) — Seçilen Yöntem
 
-WinRE, her Windows kurulumunun içine **gömülü** olarak gelen mini bir kurtarma
-işletim sistemidir. Disk üzerinde gizli bir partition'da `winre.wim` adıyla
-saklanır. Sistem açılırken sorun çıkarsa veya "Gelişmiş Başlangıç Seçenekleri"
-menüsünden girilirse, Windows bu dosyayı RAM'e yükler ve oradan çalıştırır.
+WinRE, Windows'un zaten içinde gelen ve sistem bozulduğunda kullanılan küçük bir
+kurtarma ortamıdır. Her Windows kurulumunda hazır bulunur; kurulum dosyalarının
+üzerine eklenmiş gibi çalışan bir "acil durum" işletim sistemidir.
+
+Teknik olarak WinRE, WinPE tabanlı bir kurtarma ortamıdır. WinPE ise Windows'u
+yüklemek, disk hazırlamak veya sistem kurtarmak için kullanılan daha genel bir
+temel ortamdır. WinRE ise bunun daha dar ve daha özel bir sürümüdür: yalnızca
+kurtarma ve bakım işleri için tasarlanmıştır.
+
+WinRE'nin disk üzerinde gizli bir partition'da `winre.wim` adıyla saklanır.
+Sistem açılırken sorun çıkarsa veya "Gelişmiş Başlangıç Seçenekleri" menüsünden
+seçilirse, Windows bu dosyayı RAM'e yükler ve oradan çalıştırır.
 
 **WinRE neden seçildi:**
 
-| | Linux USB | WinPE | WinRE |
-|---|---|---|---|
-| Kullanıcı hazırlığı | ✅ USB gerekir | ✅ ADK gerekir | ❌ Zaten kurulu |
-| Secure Boot uyumlu | ❌ | ❌ | ✅ MS imzalı |
-| Yazılımdan tetiklenebilir | ❌ | ❌ | ✅ `reagentc /boottore` |
-| Kullanıcı müdahalesi | ✅ Gerekir | ✅ Gerekir | ❌ Gerekmez |
+| | Linux USB | WinRE |
+|---|---|---|
+| Kullanıcı hazırlığı | ❌ USB gerekir |✅ Zaten kurulu |
+| Secure Boot uyumlu | ❌ | ✅ MS imzalı |
+| Yazılımdan tetiklenebilir | ❌ | ✅ `reagentc /boottore` |
+| Kullanıcı müdahalesi | ❌ Gerekir | ✅ Gerekmez |
 
 WinRE her makinede hazır, Microsoft tarafından imzalı ve yazılım üzerinden
 tetiklenebilir. Bu nedenle tek tıkla çalışan bir araç için en uygun seçenek.
@@ -124,38 +123,40 @@ constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::FullDiskWip
 | MBR/GPT silinir mi | ❌ | ✅ |
 | Sistem bitince | Reboots → Windows açılır | Shutdown → sistem kapanır |
 
-**PartitionWipe:**
+---
+
+### PartitionWipe:
 
 **HDD İçin (Rastgele Veri ile Üzerine Yazma):**
 Sadece hedeflenen bölüme rastgele veri yazarak güvenli silme sağlar.
-1. `diskpart` → Diskpart aracı açılır, `select disk 0`, `select partition 5`, `assign letter=Z` komutları ile hedef partition seçilip geçici bir sürücü harfi (Z:) atanır, ardından `exit` ile CMD ortamına dönülür.
+1. `diskpart` → Diskpart aracı açılır, `select disk N`, `select partition N`, `assign letter=Z` komutları ile hedef partition seçilip geçici bir sürücü harfi (Z:) atanır, ardından `exit` ile CMD ortamına dönülür.
 2. `format Z: /FS:NTFS /P:1 /Y` → Partition'daki tüm alanın üzerine 1 tur sıfır, ardından 1 tur rastgele veri yazılarak eski veriler yok edilir.
-3. `diskpart` → Diskpart tekrar açılır, `select disk 0`, `select partition 5`, `remove letter=Z` komutları ile geçici Z: harfi kaldırılır, ardından `exit` ile çıkılır.
+3. `diskpart` → Diskpart tekrar açılır, `select disk N`, `select partition N`, `remove letter=Z` komutları ile geçici Z: harfi kaldırılır, ardından `exit` ile çıkılır.
 4. `wpeutil reboot` → İşletim sistemi zarar görmediği için sistem yeniden başlatılarak normal Windows'a dönülür.
 
 **SSD İçin (Hızlı Format ve TRIM):**
 SSD ömrünü (TBW) tüketmemek ve wear-leveling sorunlarına takılmamak için rastgele veri yerine donanımsal temizlik kullanılır.
-1. `diskpart` → Diskpart aracı açılır, `select disk 0`, `select partition 5`, `assign letter=Z` komutları ile hedef partition seçilip geçici bir sürücü harfi (Z:) atanır, ardından `exit` ile CMD ortamına dönülür.
+1. `diskpart` → Diskpart aracı açılır, `select disk N`, `select partition N`, `assign letter=Z` komutları ile hedef partition seçilip geçici bir sürücü harfi (Z:) atanır, ardından `exit` ile CMD ortamına dönülür.
 2. `format Z: /FS:NTFS /Q /Y` → Hızlı format (Quick Format) uygulanarak dosya tablosu saniyeler içinde sıfırlanır. (Not: Modern Windows/WinRE ortamlarında NTFS hızlı formatı, arka planda otomatik olarak TRIM/UNMAP sinyali de gönderir.)
 3. `defrag Z: /L` → (Güvenlik Ağı) WinRE'nin minimal yapısında otomatik TRIM'in kaçırılma ihtimaline karşı, Windows'un yerleşik aracıyla TRIM/UNMAP komutu açıkça ve zorunlu olarak tekrar tetiklenir. Bu, SSD kontrolcüsüne blokların boş olduğunu kesin olarak bildirir.
-4. `diskpart` → Diskpart tekrar açılır, `select disk 0`, `select partition 5`, `remove letter=Z` komutları ile geçici Z: harfi kaldırılır, ardından `exit` ile çıkılır.
+4. `diskpart` → Diskpart tekrar açılır, `select disk N`, `select partition N`, `remove letter=Z` komutları ile geçici Z: harfi kaldırılır, ardından `exit` ile çıkılır.
 5. `wpeutil reboot` → Sistem yeniden başlatılarak normal Windows'a dönülür.
 
 ---
 
-**FullDiskWipe:**
+### FullDiskWipe:
 
 **HDD İçin Seçilen Yöntem: `clean all` (NIST 800-88 Standardı)**
-1. `diskpart` → Diskpart aracı açılır, `select disk 0`, `clean all` komutları ile disk tamamen sıfırlanır; ardından `exit` ile CMD ortamına dönülür.
+1. `diskpart` → Diskpart aracı açılır, `select disk N`, `clean all` komutları ile disk tamamen sıfırlanır; ardından `exit` ile CMD ortamına dönülür.
 2. `wpeutil shutdown` → İşletim sistemi kalmadığı için sistem tamamen kapatılır (reboot anlamsızdır).
 (Neden eski DoD standartları gibi rastgele veri yazılmadı? Günümüz yüksek yoğunluklu HDD'lerinde tek geçiş sıfır yazmak veriyi donanımsal olarak (mikroskopla bile) kurtarılamaz hale getirdiği için güncel NIST standartlarında yeterli kabul edilir.)
 
 **HDD İçin Alternatif Teori: Dinamik Bölümleme ve Toplu Format**
 (Karşılaştırma amacıyla belgelenmiştir, projede kullanılmaz)
 Eğer sıfır yerine mutlaka rastgele veri yazılmak istenseydi mimari şu olurdu:
-1. `diskpart` → Diskpart aracı açılır, `select disk 0`, `clean`, `create partition primary`, `assign letter=Z` komutları ile disk RAW hale getirilip geçici bir sürücü harfi (Z:) atanır; ardından `exit` ile CMD ortamına dönülür.
+1. `diskpart` → Diskpart aracı açılır, `select disk N`, `clean`, `create partition primary`, `assign letter=Z` komutları ile disk RAW hale getirilip geçici bir sürücü harfi (Z:) atanır; ardından `exit` ile CMD ortamına dönülür.
 2. `format Z: /FS:NTFS /P:1 /Y` → Tüm diske 1 tur sıfır + 1 tur rastgele veri yazılır.
-3. `diskpart` → Diskpart tekrar açılır, `select disk 0`, `clean` komutuyla geçici partition tablosu silinir ve disk tekrar ham (RAW) bırakılır; ardından `exit` ile çıkılır.
+3. `diskpart` → Diskpart tekrar açılır, `select disk N`, `clean` komutuyla geçici partition tablosu silinir ve disk tekrar ham (RAW) bırakılır; ardından `exit` ile çıkılır.
 4. `wpeutil shutdown` → Sistem tamamen kapatılır.
 Ancak bu mimari (limitler ve partition hataları nedeniyle) çok kırılgandır ve modern HDD'lerde gereksizdir. Bu yüzden stabil olan clean all seçilmiştir.
 
@@ -165,39 +166,41 @@ SSD'lerde `clean all` (sıfır yazmak) veya `format /P:1` (rastgele veri yazmak)
 - **Güvenlik İllüzyonu (Wear-Leveling):** Siz tüm sektörlere sıfır yazdığınızı sansanız da SSD kontrolcüsü bunu diske dağıtır ve eski verinin bir kısmı gizli yedek alanlarda fiziksel olarak kalabilir.
 
 Bu yüzden SSD'ler için en doğru yazılımsal yaklaşım donanımın kendi mekanizmasını kullanmaktır:
-1. `diskpart` → Diskpart aracı açılır, `select disk 0`, `clean`, `create partition primary`, `assign letter=Z` komutları ile disk RAW hale getirilip geçici bir sürücü harfi (Z:) atanır; ardından `exit` ile CMD ortamına dönülür.
+1. `diskpart` → Diskpart aracı açılır, `select disk N`, `clean`, `create partition primary`, `assign letter=Z` komutları ile disk RAW hale getirilip geçici bir sürücü harfi (Z:) atanır; ardından `exit` ile CMD ortamına dönülür.
 2. `format Z: /FS:NTFS /Q /Y` → Hızlı format uygulanır. (Not: Modern Windows/WinRE ortamlarında NTFS hızlı formatı, arka planda otomatik olarak TRIM/UNMAP sinyali de gönderir.)
+- **`format Z:`**: `Z:` sürücü harfine bağlı partition'ı biçimlendirir.
+- **`/FS:NTFS`**: Hedef partition'a NTFS dosya sistemini kurar. Windows ortamında standart ve güvenli bir seçimdir.
+- **`/Q`**: Hızlı format anlamına gelir. Dosya tablosunu yeniden kurar, fakat eski verileri fiziksel olarak doğrudan silmez.
+- **`/Y`**: Format sırasında gelen "devam etmek istiyor musunuz?" onay sorusunu kaldırır. Scriptlerde otomatik çalışması için gereklidir.
 3. `defrag Z: /L` → (Güvenlik Ağı) PartitionWipe moduyla aynı felsefeyle, WinRE'nin minimal yapısında otomatik TRIM'in kaçırılma ihtimaline karşı TRIM/UNMAP komutu açıkça tekrar tetiklenir. SSD kontrolcüsü bu sinyali alınca tüm NAND hücrelerini donanımsal olarak sıfırlar. Bu işlem saniyeler sürer ve SSD ömrünü (TBW) tüketmez.
-4. `diskpart` → Diskpart tekrar açılır, `select disk 0`, `clean` komutuyla geçici partition tablosu silinir ve disk tekrar ham (RAW) bırakılır; ardından `exit` ile çıkılır.
+4. `diskpart` → Diskpart tekrar açılır, `select disk N`, `clean` komutuyla geçici partition tablosu silinir ve disk tekrar ham (RAW) bırakılır; ardından `exit` ile çıkılır.
 5. `wpeutil shutdown` → Sistem tamamen kapatılır.
+
+
+**Arka Planda Tam Olarak Ne Olur? (Hızlı Formatın Sırrı)**
+
+Normal (tam) bir format işlemi diskin her sektörünü tek tek okuyup bozuk sektör (bad sector) taraması yapar ve (eski Windows sürümlerinde) üzerine sıfır yazardı. Ancak **`/Q` (Hızlı Format)** bambaşka bir şey yapar:
+
+1. **Ana Dosya Tablosu (MFT - Master File Table) Silinir/Yeniden Yazılır:** NTFS, diskindeki tüm dosyaların nerede olduğunu bu tabloda tutar. Hızlı format, bu tabloyu anında siler veya boş bir tablo ile değiştirir.
+2. **Kök Dizin (Root Directory) Temizlenir:** Diske "burada artık dosya yok" bilgisi yazılır.
+3. **Verilerin Üzerine Yazılmaz:** Eski dosyalarınızın 1 ve 0'ları (manyetik plakada veya NAND hücrelerinde) fiziksel olarak olduğu gibi kalır. Sadece işletim sistemi o alanları "boş ve üzerine yazılabilir" olarak işaretler.
+4. **KRİTİK ADIM: TRIM / UNMAP Sinyali (Sadece SSD'ler için):** Modern Windows (Vista ve sonrası, dolayısıyla WinRE de dahil), bir SSD üzerinde `/Q` ile hızlı format yaptığında, arka planda SSD kontrolcüsüne bir **TRIM (SATA) veya Deallocate/UNMAP (NVMe)** komutu gönderir. Bu komut şunu der: *"Bu bloklardaki veriler artık geçersiz, onları içsel olarak sil ve hücreleri sıfırla."*
 
 ---
 
-### `clean all` Askeri Düzeyde Güvenlik Sağlar mı?
+### `clean` ve `format` Komutlarının Karşılaştırması
 
-`diskpart clean all` komutu diskin başından sonuna kadar her sektöre sıfır (0x00) yazar. Bunun güvenliği disk tipine göre değişir:
+- **`clean`**: `diskpart` içinde kullanılan bir komuttur. Diskin genel yapısını temizler; yani partition tablosunu, partition kayıtlarını ve bölümleri "ham" duruma getirir. Bu nedenle **disk düzeyinde** çalışır. Yani önce hangi diskin seçileceği belirtilir (`select disk N`), sonra bu disk temizlenir.
+- **`format`**: Windows'un bir partition veya sürücü harfi üzerinde dosya sistemi oluşturan komutudur. Bu nedenle **partition/volume düzeyinde** çalışır. Yani önce hedef partition seçilir, sonra ona bir dosya sistemi yazılır.
 
-**HDD (Manyetik Disk) İçin: ÇOK GÜVENLİ**
-Manyetik plakalardaki her sektör fiziksel olarak sıfırlanır. Modern yüksek yoğunluklu disklerde tek bir geçiş (single pass) sıfır yazmak, veriyi kurtarılamaz hale getirmek için yeterlidir. Askeri (DoD) standartları bile modern HDD'ler için bunu yeterli bulur.
+Özetle:
+- `clean` → disk seviyesinde, fiziksel diski temizler.
+- `format` → partition seviyesinde, belirli bir bölüme dosya sistemi kurar.
 
-**SSD (NVMe / SATA) İçin: GÜNLÜK KULLANIM İÇİN YETERLİ, ASKERİ DÜZEY DEĞİL**
-SSD kontrolcüleri, NAND bellek ömrünü uzatmak için yazma işlemlerini sürekli farklı fiziksel hücrelere dağıtır (Wear Leveling) ve görünmeyen gizli yedek alanlar barındırır (Over-provisioning).
-Siz `clean all` ile sıfır yazsanız bile, SSD bunu farklı hücrelere yazabilir ve eski verilerinizin bir kısmı o gizli yedek alanlarda veya henüz "çöp toplaması" (garbage collection) yapılmamış bloklarda fiziksel olarak kalabilir.
-Sıradan veri kurtarma yazılımları bu veriyi göremez, günlük kullanım için güvenlidir. Ancak diskin donanım seviyesinde incelenebileceği askeri standartlar (NIST 800-88) için yeterli değildir (Bunun için ATA Secure Erase veya NVMe Format komutları şarttır).
+Bu yüzden:
+- Tüm diski sıfırlamak için `clean` kullanılır.
+- Sadece belirli bir partition'ı temizlemek/yeniden hazırlamak için `format` kullanılır.
 
-### Alternatif Silme Araçları (format vs cipher vs sdelete vs clean all)
-
-Windows ekosisteminde bilinen farklı güvenli silme araçları vardır. Bunların kullanım amaçları ve çalıştıkları seviyeler birbirinden farklıdır:
-
-**Partition (Sürücü Harfi) Seviyesinde Çalışanlar:**
-1. **`format /P:N` (Partition'ı Yok Etmek İçin)**: Tüm partition'ı içindeki her şeyle birlikte yok eder ve üzerine rastgele veri yazarak yeni boş bir dosya sistemi kurar. Projemizdeki `PartitionWipe` modunda tam olarak bu yerleşik araç kullanılmıştır.
-2. **`cipher /w` (Sadece Boş Alanı Temizlemek İçin)**: Partition'ı yok etmez, mevcut dosyalara dokunmaz. Yalnızca daha önceden silinmiş dosyaların izini kaybettirmek için "boş alanı" güvenli şekilde siler. Amacımız her şeyi (işletim sistemi dahil) yok etmek olduğu için projemize uygun değildir.
-3. **`sdelete` (İsviçre Çakısı)**: Sysinternals aracıdır. Hem `cipher`'ın boş alan temizleme işini hem de tek tek dosya/klasör silme işini yapar. Ancak Windows'ta yerleşik (built-in) değildir. WinRE'ye `.exe` olarak dışarıdan gömülmesi gerekir (ekstra bağımlılık). Üstelik o da yazılım tabanlı olduğu için SSD'lerdeki wear-leveling (aşınma dengeleme) kısıtlamalarına takılır.
-
-**Fiziksel Disk Seviyesinde Çalışanlar:**
-4. **`diskpart clean all` (Her Şeyi Sıfırlarla Doldurmak İçin)**: Diğer üçünün aksine sürücü harfleriyle veya dosya sistemleriyle ilgilenmez. Doğrudan donanımsal fiziksel diske (Disk 0) odaklanır. İşletim sistemi, MBR, GPT, EFI ve Kurtarma bölümleri dahil ne var ne yoksa tek hamlede sıfırlar. Sadece "0" yazar, rastgele veri yazmaz.
-
-Sonuç olarak projemizde sıfır bağımlılık ilkesiyle; sadece belirli bir bölümü silmek için `format` (PartitionWipe), işletim sistemi dahil diskin tamamını silmek için ise yerleşik ve en stabil araç olan `clean all` (HDD) ve `clean`+TRIM (SSD) kullanılmıştır.
 ---
 
 ## Teknik Kararlar ve Trade-off'lar
