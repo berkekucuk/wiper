@@ -2,15 +2,18 @@
 
 #include <string>
 #include "disk_detector.h"
+#include "winre_patcher.h"
 
 namespace WinREScriptGenerator
 {
 
 
     /**
-     * @brief Embeds all necessary scripts for a FullDiskWipe into the mounted WinRE image.
+     * @brief Embeds all necessary scripts for a disk wipe into the mounted WinRE image.
      */
-    bool GenerateFullDiskWipeScripts(const std::string& mountDir, int diskNumber, bool isSSD);
+    bool GenerateDiskWipeScripts(const std::string& mountDir,
+                                 int diskNumber,
+                                 WinREPatcher::WipeStrategy strategy);
 
     /**
      * @brief Updates winpeshl.ini inside the mounted WinRE image to launch

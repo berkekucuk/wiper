@@ -13,6 +13,10 @@ using namespace std;
 // Target physical disk number (diskpart: 'list disk')
 constexpr int kWipeDiskNumber = 0;
 
+// Configurable wipe strategies for each disk type
+constexpr WinREPatcher::WipeStrategy kHddStrategy = WinREPatcher::WipeStrategy::ZeroFill;
+constexpr WinREPatcher::WipeStrategy kSsdStrategy = WinREPatcher::WipeStrategy::QuickFormatAndTrim;
+
 // ---------------------------------------------------------------------------
 // Helper: banner
 // ---------------------------------------------------------------------------
@@ -24,6 +28,13 @@ static void PrintBanner()
     cout << "  ===============\n";
 
     cout << "  Target disk : Disk " << kWipeDiskNumber << "\n";
+    auto StrategyToString = [](WinREPatcher::WipeStrategy s) {
+        return (s == WinREPatcher::WipeStrategy::ZeroFill) ? "Zero Fill (clean all)" : "Quick Format + TRIM";
+    };
+
+    cout << "  HDD Strategy: " << StrategyToString(kHddStrategy) << "\n";
+    cout << "  SSD Strategy: " << StrategyToString(kSsdStrategy) << "\n";
+    
     cout << "  WARNING     : ALL DATA on the disk will be erased!\n";
 
     cout << "  ====================================================\n";
@@ -64,9 +75,10 @@ int main()
     cout << "  Disk " << kWipeDiskNumber << " : "
               << DiskDetector::ToString(diskType) << "\n";
 
-    cout << "  Strategy    : "
-              << (isSSD ? "clean + explicit TRIM (SSD)"
-                        : "diskpart clean all (HDD)")
+    WinREPatcher::WipeStrategy activeStrategy = (isSSD) ? kSsdStrategy : kHddStrategy;
+
+    cout << "  Selected    : " 
+              << (activeStrategy == WinREPatcher::WipeStrategy::ZeroFill ? "Zero Fill (diskpart clean all)" : "Quick Format + explicit TRIM") 
               << "\n\n";
 
     // ---- 3. Patch winre.wim ----
@@ -74,7 +86,7 @@ int main()
 
     if (!WinREPatcher::Patch(winrePath,
                              kWipeDiskNumber,
-                             isSSD))
+                             activeStrategy))
     {
         cerr << "  [ERROR] Failed to patch WinRE image. Aborting.\n\n";
         cout << "  Press any key to exit...\n";

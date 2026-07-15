@@ -10,10 +10,11 @@ using namespace std;
 
 namespace WinREScriptGenerator
 {
-    bool GenerateFullDiskWipeScripts(const string& mountDir, int diskNumber, bool isSSD)
+    bool GenerateDiskWipeScripts(const string& mountDir,
+                                 int diskNumber,
+                                 WinREPatcher::WipeStrategy strategy)
     {
-
-        if (!isSSD)
+        if (strategy == WinREPatcher::WipeStrategy::ZeroFill)
         {
             // HDD: clean all -> shutdown
             {

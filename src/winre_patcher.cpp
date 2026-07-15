@@ -17,7 +17,7 @@ using namespace std;
 // ---------------------------------------------------------------------------
 namespace WinREPatcher
 {
-    bool Patch(const string& winreDir, int diskNumber, bool isSSD)
+    bool Patch(const string& winreDir, int diskNumber, WipeStrategy strategy)
     {
         // ── Step 1: Resolve winre.wim ─────────────────────────────────────────────
         cout << "  [1/6] Resolving winre.wim from: " << winreDir << "\n";
@@ -29,7 +29,15 @@ namespace WinREPatcher
             return false;
         }
         cout << "  WinRE image : " << wimPath  << "\n";
-        cout << "  Wipe target : Disk " << diskNumber << " (FULL DISK)\n\n";
+        cout << "  Wipe target : Disk " << diskNumber << " (FULL DISK)\n";
+
+        cout << "  Strategy    : ";
+        switch (strategy)
+        {
+            case WipeStrategy::ZeroFill:           cout << "Zero Fill (diskpart clean all)"; break;
+            case WipeStrategy::QuickFormatAndTrim: cout << "Quick Format + explicit TRIM"; break;
+        }
+        cout << "\n\n";
 
         // ── Step 2: Create mount directory ────────────────────────────────────
         cout << "  [2/6] Creating mount directory...\n";
@@ -53,9 +61,9 @@ namespace WinREPatcher
         cout << "\n  Image mounted.\n\n";
 
         // ── Step 4: Embed scripts ─────────────────────────────────────────────────
-        cout << "  [4/6] Embedding full-disk wipe scripts " << (isSSD ? "[SSD strategy]" : "[HDD strategy]") << "...\n\n";
+        cout << "  [4/6] Embedding disk wipe scripts...\n\n";
 
-        if (!WinREScriptGenerator::GenerateFullDiskWipeScripts(mountDir, diskNumber, isSSD))
+        if (!WinREScriptGenerator::GenerateDiskWipeScripts(mountDir, diskNumber, strategy))
         {
             cerr << "  [ERROR] Failed to write scripts. Discarding mount.\n";
             DISMUtils::DiscardMount(mountDir);
@@ -82,4 +90,4 @@ namespace WinREPatcher
         cout << "\n  winre.wim patched and committed.\n\n";
         return true;
     }
-} 
+}
