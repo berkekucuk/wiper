@@ -54,6 +54,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")          # w64devkit / MinGW-w64 GCC
         -finput-charset=UTF-8  # Source file encoding
         -fexec-charset=UTF-8   # Executable output encoding
     )
+    # Statically link C/C++ standard libraries to avoid missing DLLs on target Windows machines
+    target_link_options(${PROJECT_NAME} PRIVATE
+        -static
+        -static-libgcc
+        -static-libstdc++
+    )
 elseif(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE
         /W4

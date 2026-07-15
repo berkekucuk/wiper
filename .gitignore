@@ -9,6 +9,7 @@ CMakeScripts/
 Makefile
 cmake_install.cmake
 install_manifest.txt
+mingw-w64-toolchain.cmake
 compile_commands.json
 
 # Compiled objects and executables
