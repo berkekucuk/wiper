@@ -10,22 +10,8 @@
 
 using namespace std;
 
-// ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
-
-// Wipe mode:
-//   WipeMode::PartitionWipe  →  silences a single partition (default, safe)
-//   WipeMode::FullDiskWipe   →  zeros the ENTIRE physical disk (irreversible,
-//                                system will shut down instead of rebooting)
-constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::PartitionWipe;
-
 // Target physical disk number (diskpart: 'list disk')
 constexpr int kWipeDiskNumber = 0;
-
-// Target partition number — used only in PartitionWipe mode
-// (diskpart: 'select disk N' then 'list partition')
-constexpr int kWipePartitionNumber = 2; 
 
 // ---------------------------------------------------------------------------
 // Helper: banner
@@ -37,26 +23,13 @@ static void PrintBanner()
     cout << "       Wiper     \n";
     cout << "  ===============\n";
 
-    if (kWipeMode == WinREPatcher::WipeMode::FullDiskWipe)
-    {
-        cout << "  Mode        : FULL DISK WIPE\n";
-        cout << "  Target disk : Disk " << kWipeDiskNumber << "\n";
-        cout << "  WARNING     : ALL DATA on the disk will be erased!\n";
-    }
-    else
-    {
-        cout << "  Mode        : Partition wipe\n";
-        cout << "  Target      : Disk " << kWipeDiskNumber
-                  << "  /  Partition " << kWipePartitionNumber << "\n";
-    }
+    cout << "  Target disk : Disk " << kWipeDiskNumber << "\n";
+    cout << "  WARNING     : ALL DATA on the disk will be erased!\n";
 
     cout << "  ====================================================\n";
     cout << "\n";
 }
 
-// ---------------------------------------------------------------------------
-// main
-// ---------------------------------------------------------------------------
 int main()
 {
     PrintBanner();
@@ -91,29 +64,17 @@ int main()
     cout << "  Disk " << kWipeDiskNumber << " : "
               << DiskDetector::ToString(diskType) << "\n";
 
-    if (kWipeMode == WinREPatcher::WipeMode::PartitionWipe)
-    {
-        cout << "  Strategy    : "
-                  << (isSSD ? "quick format + explicit TRIM (SSD)" 
-                            : "format /P:1 random overwrite (HDD)")
-                  << "\n\n";
-    }
-    else
-    {
-        cout << "  Strategy    : "
-                  << (isSSD ? "clean + explicit TRIM (SSD)"       
-                            : "diskpart clean all (HDD)")        
-                  << "\n\n";
-    }
+    cout << "  Strategy    : "
+              << (isSSD ? "clean + explicit TRIM (SSD)"
+                        : "diskpart clean all (HDD)")
+              << "\n\n";
 
     // ---- 3. Patch winre.wim ----
     cout << "  [3/5] Patching WinRE image...\n\n";
 
     if (!WinREPatcher::Patch(winrePath,
                              kWipeDiskNumber,
-                             kWipePartitionNumber,
-                             diskType,
-                             kWipeMode))
+                             isSSD))
     {
         cerr << "  [ERROR] Failed to patch WinRE image. Aborting.\n\n";
         cout << "  Press any key to exit...\n";

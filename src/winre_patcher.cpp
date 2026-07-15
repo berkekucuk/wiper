@@ -17,19 +17,10 @@ using namespace std;
 // ---------------------------------------------------------------------------
 namespace WinREPatcher
 {
-    bool Patch(const string&     winreDir,
-               int                    diskNumber,
-               int                    partitionNumber,
-               DiskDetector::DiskType diskType,
-               WipeMode               mode)
+    bool Patch(const string& winreDir, int diskNumber, bool isSSD)
     {
-        const bool isSSD =
-            (diskType == DiskDetector::DiskType::SSD_SATA ||
-             diskType == DiskDetector::DiskType::SSD_NVME);
-        const bool isFullDisk = (mode == WipeMode::FullDiskWipe);
-
-        // ── Resolve winre.wim ─────────────────────────────────────────────────────
-        cout << "  Resolving winre.wim from: " << winreDir << "\n";
+        // ── Step 1: Resolve winre.wim ─────────────────────────────────────────────
+        cout << "  [1/6] Resolving winre.wim from: " << winreDir << "\n";
         const string wimPath = WIMResolver::ResolveWimPath(winreDir);
 
         if (wimPath.empty())
@@ -37,29 +28,14 @@ namespace WinREPatcher
             cerr << "  [ERROR] winre.wim not found.\n";
             return false;
         }
-
-        const string mountDir = DISMUtils::BuildMountDir();
-
         cout << "  WinRE image : " << wimPath  << "\n";
-        cout << "  Mount dir   : " << mountDir << "\n";
-        if (isFullDisk)
-        {
-            cout << "  Wipe target : Disk " << diskNumber << " (FULL DISK)\n";
-            cout << "  Disk type   : " << DiskDetector::ToString(diskType) << "\n";
-            cout << "  Mode        : FullDiskWipe — "
-                      << (isSSD ? "clean + TRIM" : "diskpart clean all") << "\n\n";
-        }
-        else
-        {
-            cout << "  Wipe target : Disk " << diskNumber
-                      << "  /  Partition " << partitionNumber << "\n";
-            cout << "  Disk type   : " << DiskDetector::ToString(diskType) << "\n";
-            cout << "  Mode        : PartitionWipe — "
-                      << (isSSD ? "quick format + TRIM" : "format /P:1") << "\n\n";
-        }
+        cout << "  Wipe target : Disk " << diskNumber << " (FULL DISK)\n\n";
 
-        // ── Step 1: Create mount directory ────────────────────────────────────
-        cout << "  [1/4] Creating mount directory...\n";
+        // ── Step 2: Create mount directory ────────────────────────────────────
+        cout << "  [2/6] Creating mount directory...\n";
+        const string mountDir = DISMUtils::BuildMountDir();
+        cout << "  Mount dir   : " << mountDir << "\n";
+
         if (!CreateDirectoryA(mountDir.c_str(), nullptr))
         {
             cerr << "  [ERROR] CreateDirectory failed "
@@ -67,9 +43,8 @@ namespace WinREPatcher
             return false;
         }
 
-        // ── Step 2: Mount via DISM ──────────────────────────────────────────
-        cout << "  [2/4] Mounting WinRE image via DISM "
-                     "(may take up to 60 s)...\n\n";
+        // ── Step 3: Mount via DISM ──────────────────────────────────────────
+        cout << "  [3/6] Mounting WinRE image via DISM (may take up to 60 s)...\n\n";
 
         if (!DISMUtils::MountImage(wimPath, mountDir))
         {
@@ -77,35 +52,18 @@ namespace WinREPatcher
         }
         cout << "\n  Image mounted.\n\n";
 
-        // ── Step 3: Embed scripts ─────────────────────────────────────────────────
-        if (isFullDisk)
-        {
-            cout << "  [3/4] Embedding full-disk wipe scripts "
-                      << (isSSD ? "[SSD strategy]" : "[HDD strategy]") << "...\n\n";
+        // ── Step 4: Embed scripts ─────────────────────────────────────────────────
+        cout << "  [4/6] Embedding full-disk wipe scripts " << (isSSD ? "[SSD strategy]" : "[HDD strategy]") << "...\n\n";
 
-            if (!WinREScriptGenerator::GenerateFullDiskWipeScripts(mountDir, diskNumber, diskType))
-            {
-                cerr << "  [ERROR] Failed to write scripts. Discarding mount.\n";
-                DISMUtils::DiscardMount(mountDir);
-                return false;
-            }
-        }
-        else
+        if (!WinREScriptGenerator::GenerateFullDiskWipeScripts(mountDir, diskNumber, isSSD))
         {
-            // PartitionWipe — drive-letter-based format strategy
-            cout << "  [3/4] Embedding partition wipe scripts "
-                      << (isSSD ? "[SSD strategy]" : "[HDD strategy]") << "...\n\n";
-
-            if (!WinREScriptGenerator::GeneratePartitionWipeScripts(mountDir, diskNumber, partitionNumber, diskType))
-            {
-                cerr << "  [ERROR] Failed to write scripts. Discarding mount.\n";
-                DISMUtils::DiscardMount(mountDir);
-                return false;
-            }
+            cerr << "  [ERROR] Failed to write scripts. Discarding mount.\n";
+            DISMUtils::DiscardMount(mountDir);
+            return false;
         }
 
-        // ── Step 4: Patch winpeshl.ini ─────────────────────────────────────────
-        cout << "  [4/4] Patching winpeshl.ini...\n";
+        // ── Step 5: Patch winpeshl.ini ─────────────────────────────────────────
+        cout << "  [5/6] Patching winpeshl.ini...\n";
         if (!WinREScriptGenerator::PatchWinpeshl(mountDir))
         {
             cerr << "  [ERROR] winpeshl.ini patch failed. Discarding mount.\n";
@@ -113,8 +71,8 @@ namespace WinREPatcher
             return false;
         }
 
-        // ── Commit and unmount ───────────────────────────────────────────────────
-        cout << "  Committing and unmounting (may take up to 60 s)...\n\n";
+        // ── Step 6: Commit and unmount ───────────────────────────────────────────
+        cout << "  [6/6] Committing and unmounting (may take up to 60 s)...\n\n";
 
         if (!DISMUtils::CommitAndUnmount(mountDir))
         {
@@ -124,4 +82,4 @@ namespace WinREPatcher
         cout << "\n  winre.wim patched and committed.\n\n";
         return true;
     }
-} // namespace WinREPatcher
+} 

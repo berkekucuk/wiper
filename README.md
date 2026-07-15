@@ -1,13 +1,10 @@
 ## Proje Nedir?
 
 `wiper`, Windows çalışırken çift tıklanabilen ve sistem yeniden başladığında
-hedef diski **otomatik olarak** silen bir araçtır. Kullanıcıdan herhangi bir
-ek giriş beklenmez — her şey programın kendisi tarafından yönetilir.
+hedef diski **otomatik olarak** geri döndürülemeyecek şekilde silen bir araçtır.
+Kullanıcıdan herhangi bir ek giriş beklenmez — her şey programın kendisi tarafından yönetilir.
 
-İki modu vardır:
-
-- **PartitionWipe** — belirli bir partition'ı siler (varsayılan)
-- **FullDiskWipe** — tüm fiziksel diski sıfırlar (işletim sistemi dahil)
+Bu araç, **işletim sisteminin kurulu olduğu diski dahi** canlı olarak silmek üzere tasarlanmıştır.
 
 ---
 
@@ -39,14 +36,7 @@ WinRE, Windows'un zaten içinde gelen ve sistem bozulduğunda kullanılan küç�
 kurtarma ortamıdır. Her Windows kurulumunda hazır bulunur; kurulum dosyalarının
 üzerine eklenmiş gibi çalışan bir "acil durum" işletim sistemidir.
 
-Teknik olarak WinRE, WinPE tabanlı bir kurtarma ortamıdır. WinPE ise Windows'u
-yüklemek, disk hazırlamak veya sistem kurtarmak için kullanılan daha genel bir
-temel ortamdır. WinRE ise bunun daha dar ve daha özel bir sürümüdür: yalnızca
-kurtarma ve bakım işleri için tasarlanmıştır.
-
-WinRE'nin disk üzerinde gizli bir partition'da `winre.wim` adıyla saklanır.
-Sistem açılırken sorun çıkarsa veya "Gelişmiş Başlangıç Seçenekleri" menüsünden
-seçilirse, Windows bu dosyayı RAM'e yükler ve oradan çalıştırır.
+Teknik olarak WinRE, WinPE tabanlı bir kurtarma ortamıdır. WinRE, gizli bir partition'da `winre.wim` adıyla saklanır. Sistem açılırken "Gelişmiş Başlangıç Seçenekleri" menüsünden seçilirse, Windows bu dosyayı RAM'e yükler ve oradan çalıştırır.
 
 **WinRE neden seçildi:**
 
@@ -70,29 +60,23 @@ tetiklenebilir. Bu nedenle tek tıkla çalışan bir araç için en uygun seçen
 ### Windows'ta (EXE çalışırken)
 
 **[1/5] WinRE'yi bul**
-
 `reagentc /info` komutuyla `winre.wim` dosyasının diskteki tam yolu bulunur.
 
-**[2/5] Disk tipini tespit et** 
-
+**[2/5] Disk tipini tespit et**
 Windows IOCTL API'si üzerinden hedef diskin HDD mi, SATA SSD mi,
-yoksa NVMe SSD mi olduğu anlaşılır. Bu bilgi, uygun silme komutunu
-seçmek için kullanılır.
+yoksa NVMe SSD mi olduğu anlaşılır. Bu bilgi, uygun silme komutunu seçmek için kullanılır.
 
 **[3/5] WinRE imajını yamala**
-
 `winre.wim` DISM ile geçici bir klasöre açılır (mount edilir). İçine
 silme scriptleri gömülür ve WinRE'nin başlangıç ayar dosyası
 (`winpeshl.ini`) değiştirilerek açılışta doğrudan bu scriptlerin
 çalışması sağlanır. Ardından değişiklikler `winre.wim`'e geri yazılır.
 
 **[4/5] Geri sayım**
-
 10 saniye geri sayım başlar. Bu sürede herhangi bir tuşa basılırsa
 işlem iptal edilir.
 
 **[5/5] Yeniden başlat**
-
 `reagentc /boottore` ile BCD'ye "bir sonraki açılışta WinRE'ye gir"
 bayrağı eklenir. Ardından sistem yeniden başlatılır.
 
@@ -103,48 +87,9 @@ bayrağı eklenir. Ardından sistem yeniden başlatılır.
 WinRE `winre.wim`'den RAM'e yüklenir. `winpeshl.ini` okunur ve
 bizim script dosyamız çalıştırılır:
 
----
+## Silme Stratejileri
 
-## Silme Modları
-
-`main.cpp` içindeki tek satırla mod değiştirilir:
-
-```cpp
-constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::PartitionWipe;  // varsayılan
-// veya:
-constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::FullDiskWipe;
-```
-
-| | PartitionWipe | FullDiskWipe |
-|---|---|---|
-| Hedef | Tek partition | Tüm fiziksel disk |
-| Komut | `format /P:1 (HDD)` / `format /Q (SDD)` | `clean all` (HDD) / `clean`+TRIM (SSD) |
-| Disk tipi tespiti | ✅ | ✅  |
-| MBR/GPT silinir mi | ❌ | ✅ |
-| Sistem bitince | Reboots → Windows açılır | Shutdown → sistem kapanır |
-
----
-
-### PartitionWipe:
-
-**HDD İçin (Rastgele Veri ile Üzerine Yazma):**
-Sadece hedeflenen bölüme rastgele veri yazarak güvenli silme sağlar.
-1. `diskpart` → Diskpart aracı açılır, `select disk N`, `select partition N`, `assign letter=Z` komutları ile hedef partition seçilip geçici bir sürücü harfi (Z:) atanır, ardından `exit` ile CMD ortamına dönülür.
-2. `format Z: /FS:NTFS /P:1 /Y` → Partition'daki tüm alanın üzerine 1 tur sıfır, ardından 1 tur rastgele veri yazılarak eski veriler yok edilir.
-3. `diskpart` → Diskpart tekrar açılır, `select disk N`, `select partition N`, `remove letter=Z` komutları ile geçici Z: harfi kaldırılır, ardından `exit` ile çıkılır.
-4. `wpeutil reboot` → İşletim sistemi zarar görmediği için sistem yeniden başlatılarak normal Windows'a dönülür.
-
-**SSD İçin (Hızlı Format ve TRIM):**
-SSD ömrünü (TBW) tüketmemek ve wear-leveling sorunlarına takılmamak için rastgele veri yerine donanımsal temizlik kullanılır.
-1. `diskpart` → Diskpart aracı açılır, `select disk N`, `select partition N`, `assign letter=Z` komutları ile hedef partition seçilip geçici bir sürücü harfi (Z:) atanır, ardından `exit` ile CMD ortamına dönülür.
-2. `format Z: /FS:NTFS /Q /Y` → Hızlı format (Quick Format) uygulanarak dosya tablosu saniyeler içinde sıfırlanır. (Not: Modern Windows/WinRE ortamlarında NTFS hızlı formatı, arka planda otomatik olarak TRIM/UNMAP sinyali de gönderir.)
-3. `defrag Z: /L` → (Güvenlik Ağı) WinRE'nin minimal yapısında otomatik TRIM'in kaçırılma ihtimaline karşı, Windows'un yerleşik aracıyla TRIM/UNMAP komutu açıkça ve zorunlu olarak tekrar tetiklenir. Bu, SSD kontrolcüsüne blokların boş olduğunu kesin olarak bildirir.
-4. `diskpart` → Diskpart tekrar açılır, `select disk N`, `select partition N`, `remove letter=Z` komutları ile geçici Z: harfi kaldırılır, ardından `exit` ile çıkılır.
-5. `wpeutil reboot` → Sistem yeniden başlatılarak normal Windows'a dönülür.
-
----
-
-### FullDiskWipe:
+HDDs (Mekanik Diskler) ve SSDs (Katı Hal Sürücüleri) veriyi tamamen farklı depoladığı için, Wiper alt taraftaki donanımı tespit edip ona göre tamamen farklı algoritmalar çalıştırır.
 
 **HDD İçin Seçilen Yöntem: `clean all` (NIST 800-88 Standardı)**
 1. `diskpart` → Diskpart aracı açılır, `select disk N`, `clean all` komutları ile disk tamamen sıfırlanır; ardından `exit` ile CMD ortamına dönülür.
@@ -175,7 +120,6 @@ Bu yüzden SSD'ler için en doğru yazılımsal yaklaşım donanımın kendi mek
 3. `defrag Z: /L` → (Güvenlik Ağı) PartitionWipe moduyla aynı felsefeyle, WinRE'nin minimal yapısında otomatik TRIM'in kaçırılma ihtimaline karşı TRIM/UNMAP komutu açıkça tekrar tetiklenir. SSD kontrolcüsü bu sinyali alınca tüm NAND hücrelerini donanımsal olarak sıfırlar. Bu işlem saniyeler sürer ve SSD ömrünü (TBW) tüketmez.
 4. `diskpart` → Diskpart tekrar açılır, `select disk N`, `clean` komutuyla geçici partition tablosu silinir ve disk tekrar ham (RAW) bırakılır; ardından `exit` ile çıkılır.
 5. `wpeutil shutdown` → Sistem tamamen kapatılır.
-
 
 **Arka Planda Tam Olarak Ne Olur? (Hızlı Formatın Sırrı)**
 
@@ -254,28 +198,19 @@ partition seçimi diskpart ile, silme ise format.exe ile yapıldı.
 
 ## Konfigürasyon
 
-`src/main.cpp` içindeki üç sabiti düzenle:
+`src/main.cpp` içindeki sabiti düzenle:
 
 ```cpp
-// Silme modu
-constexpr WinREPatcher::WipeMode kWipeMode = WinREPatcher::WipeMode::PartitionWipe;
-// Alternatif: WipeMode::FullDiskWipe (tüm diski sıfırlar)
-
 // Hedef disk numarası (diskpart: 'list disk')
+// Disk 0 genellikle işletim sisteminin kurulu olduğu ana disktir.
 constexpr int kWipeDiskNumber = 0;
-
-// Hedef partition numarası — sadece PartitionWipe modunda kullanılır
-// (diskpart: 'select disk N' → 'list partition')
-constexpr int kWipePartitionNumber = 5;
 ```
 
-### Disk ve Partition Numarasını Bulmak
+### Disk Numarasını Bulmak
 
 ```
 diskpart
-list disk          → disk numarasını öğren
-select disk 0
-list partition     → partition numarasını öğren
+list disk          → hedef disk numarasını öğren (örn. Disk 0)
 exit
 ```
 
@@ -283,15 +218,12 @@ exit
 
 ## DISM Mount Temizliği
 
-DISM işlemi yarıda kesilirse mount klasörü geride kalabilir.
-Bunu temizlemek için:
-
+DISM işlemi (geliştirme aşamasında vs.) yarıda kesilirse mount klasörü geride kalabilir. Bunu temizlemek için:
 ```sh
 dism /Cleanup-Mountpoints
 ```
-## Gereksinimler
 
-### Çalışma Ortamı
+## Gereksinimler
 
 | Gereksinim | Detay |
 |------------|-------|
@@ -299,17 +231,16 @@ dism /Cleanup-Mountpoints
 | **Yetki** | Administrator (Yönetici) |
 | **WinRE** | Etkin olmalı (`reagentc /info` ile kontrol edilebilir) |
 | **Secure Boot** | Sorun yok — WinRE Microsoft tarafından imzalı |
-| **BitLocker** | Hedef disk BitLocker ile şifreli olsa bile araç sorunsuz çalışır. format veya clean komutları şifreli blokların üzerine fiziksel olarak yazar. WinRE'nin kendisi zaten şifreli ortamla uyumlu çalışacak şekilde tasarlanmıştır.
+| **BitLocker** | Hedef disk BitLocker ile şifreli olsa bile araç sorunsuz çalışır. `clean` komutu şifreli blokların üzerine fiziksel olarak yazar. WinRE'nin kendisi zaten şifreli ortamla uyumlu çalışacak şekilde tasarlanmıştır.
 
 ### Derleme Aracı
-
 [w64devkit](https://github.com/skeeto/w64devkit)
 
 ---
 
 ## Derleme (Build)
 
-proje klasörüne git:
+Proje klasörüne git:
 
 ```sh
 # Yapılandır (Ninja, GCC, Release modu)
@@ -321,12 +252,6 @@ cmake --build build
 
 Çıktı: `build\wiper.exe`
 
-Değişiklik yapıp tekrar derlemek için:
-
-```sh
-cmake --build build --clean-first
-```
-
 ---
 
 ## Kullanım
@@ -337,9 +262,8 @@ build\wiper.exe
 ```
 
 Program şu adımları izler:
-
 1. WinRE konumunu tespit eder ve ekrana basar
 2. Disk tipini tespit eder (HDD / SSD)
-3. `winre.wim` içine silme scriptlerini gömer
+3. `winre.wim` içine diski güvenle silme scriptlerini gömer
 4. 10 saniyelik geri sayım başlar — herhangi bir tuşa basarak iptal edilebilir
-5. Sistem WinRE üzerinden yeniden başlatılır
+5. Sistem WinRE üzerinden yeniden başlatılır ve diski silip otomatik kapanır.
