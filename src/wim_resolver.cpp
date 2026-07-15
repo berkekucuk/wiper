@@ -1,6 +1,6 @@
 #include "wim_resolver.h"
-
 #include <windows.h>
+
 #include <iostream>
 
 using namespace std;

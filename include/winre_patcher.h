@@ -10,6 +10,7 @@ namespace WinREPatcher
     enum class WipeStrategy
     {
         ZeroFill,           ///< Uses 'diskpart clean all' (1-pass zero fill) on every sector
+        RandomFill,         ///< Creates partition, uses 'format /P:1' (zero + random data), then cleans
         QuickFormatAndTrim  ///< Uses quick format + explicit TRIM to instantly erase cells
     };
 

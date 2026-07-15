@@ -1,7 +1,6 @@
 #pragma once
 
 #include <string>
-#include "disk_detector.h"
 #include "winre_patcher.h"
 
 namespace WinREScriptGenerator

@@ -1,5 +1,4 @@
 #include "winre_finder.h"
-
 #include <windows.h>
 
 #include <array>

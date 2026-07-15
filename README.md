@@ -96,14 +96,13 @@ HDDs (Mekanik Diskler) ve SSDs (Katı Hal Sürücüleri) veriyi tamamen farklı 
 2. `wpeutil shutdown` → İşletim sistemi kalmadığı için sistem tamamen kapatılır (reboot anlamsızdır).
 (Neden eski DoD standartları gibi rastgele veri yazılmadı? Günümüz yüksek yoğunluklu HDD'lerinde tek geçiş sıfır yazmak veriyi donanımsal olarak (mikroskopla bile) kurtarılamaz hale getirdiği için güncel NIST standartlarında yeterli kabul edilir.)
 
-**HDD İçin Alternatif Teori: Dinamik Bölümleme ve Toplu Format**
-(Karşılaştırma amacıyla belgelenmiştir, projede kullanılmaz)
-Eğer sıfır yerine mutlaka rastgele veri yazılmak istenseydi mimari şu olurdu:
+**HDD İçin Alternatif Yöntem: Dinamik Bölümleme ve Rastgele Veri Formatı (`RandomFill`)**
+Eğer sıfır yerine mutlaka rastgele veri yazılmak istenirse bu mod kullanılabilir. Mimari şu şekildedir:
 1. `diskpart` → Diskpart aracı açılır, `select disk N`, `clean`, `create partition primary`, `assign letter=Z` komutları ile disk RAW hale getirilip geçici bir sürücü harfi (Z:) atanır; ardından `exit` ile CMD ortamına dönülür.
 2. `format Z: /FS:NTFS /P:1 /Y` → Tüm diske 1 tur sıfır + 1 tur rastgele veri yazılır.
 3. `diskpart` → Diskpart tekrar açılır, `select disk N`, `clean` komutuyla geçici partition tablosu silinir ve disk tekrar ham (RAW) bırakılır; ardından `exit` ile çıkılır.
 4. `wpeutil shutdown` → Sistem tamamen kapatılır.
-Ancak bu mimari (limitler ve partition hataları nedeniyle) çok kırılgandır ve modern HDD'lerde gereksizdir. Bu yüzden stabil olan clean all seçilmiştir.
+Ancak bu mimari `clean all` işlemine göre çok daha fazla zaman alır. Yüksek bir güvenlik standardı hedeflenmediği sürece stabil ve hızlı olan `clean all` (ZeroFill) seçeneği varsayılan olarak önerilir. İstenirse `main.cpp` içerisinden `RandomFill` stratejisi seçilerek bu mod aktif edilebilir.
 
 **SSD İçin Seçilen Yöntem: Partition Oluştur, Hızlı Formatla (TRIM Tetikle) ve Temizle.**
 SSD'lerde `clean all` (sıfır yazmak) veya `format /P:1` (rastgele veri yazmak) iki büyük soruna yol açar:

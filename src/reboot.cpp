@@ -1,5 +1,4 @@
 #include "reboot.h"
-
 #include <windows.h>
 
 #include <iostream>

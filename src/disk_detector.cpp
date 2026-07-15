@@ -1,5 +1,4 @@
 #include "disk_detector.h"
-
 #include <windows.h>
 #include <winioctl.h>
 

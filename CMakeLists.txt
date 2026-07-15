@@ -22,6 +22,7 @@ set(SOURCES
     src/dism_utils.cpp
     src/winre_script_generator.cpp
     src/disk_detector.cpp
+    src/cli_utils.cpp
 )
 
 # ── Executable ────────────────────────────────────────────────────────────────

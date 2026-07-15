@@ -1,13 +1,10 @@
 #include "winre_patcher.h"
-#include "disk_detector.h"
 #include "dism_utils.h"
 #include "wim_resolver.h"
 #include "winre_script_generator.h"
 
 #include <windows.h>
-#include <fstream>
 #include <iostream>
-#include <sstream>
 #include <string>
 
 using namespace std;
@@ -35,6 +32,7 @@ namespace WinREPatcher
         switch (strategy)
         {
             case WipeStrategy::ZeroFill:           cout << "Zero Fill (diskpart clean all)"; break;
+            case WipeStrategy::RandomFill:         cout << "Random Fill (format /P:1)"; break;
             case WipeStrategy::QuickFormatAndTrim: cout << "Quick Format + explicit TRIM"; break;
         }
         cout << "\n\n";

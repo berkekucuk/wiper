@@ -1,3 +1,4 @@
+#include "cli_utils.h"
 #include "countdown.h"
 #include "disk_detector.h"
 #include "reboot.h"
@@ -17,33 +18,9 @@ constexpr int kWipeDiskNumber = 0;
 constexpr WinREPatcher::WipeStrategy kHddStrategy = WinREPatcher::WipeStrategy::ZeroFill;
 constexpr WinREPatcher::WipeStrategy kSsdStrategy = WinREPatcher::WipeStrategy::QuickFormatAndTrim;
 
-// ---------------------------------------------------------------------------
-// Helper: banner
-// ---------------------------------------------------------------------------
-static void PrintBanner()
-{
-    cout << "\n";
-    cout << "  ===============\n";
-    cout << "       Wiper     \n";
-    cout << "  ===============\n";
-
-    cout << "  Target disk : Disk " << kWipeDiskNumber << "\n";
-    auto StrategyToString = [](WinREPatcher::WipeStrategy s) {
-        return (s == WinREPatcher::WipeStrategy::ZeroFill) ? "Zero Fill (clean all)" : "Quick Format + TRIM";
-    };
-
-    cout << "  HDD Strategy: " << StrategyToString(kHddStrategy) << "\n";
-    cout << "  SSD Strategy: " << StrategyToString(kSsdStrategy) << "\n";
-
-    cout << "  WARNING     : ALL DATA on the disk will be erased!\n";
-
-    cout << "  ====================================================\n";
-    cout << "\n";
-}
-
 int main()
 {
-    PrintBanner();
+    CLIUtils::PrintBanner(kWipeDiskNumber, kHddStrategy, kSsdStrategy);
 
     // ---- 1. Locate WinRE ----
     cout << "  [1/5] Locating WinRE...\n\n";
@@ -78,9 +55,7 @@ int main()
     WinREPatcher::WipeStrategy activeStrategy = (isSSD) ? kSsdStrategy : kHddStrategy;
 
     cout << "  Selected    : "
-              << (activeStrategy == WinREPatcher::WipeStrategy::ZeroFill
-                ? "Zero Fill (diskpart clean all)"
-                : "Quick Format + explicit TRIM")
+              << CLIUtils::StrategyToString(activeStrategy)
               << "\n\n";
 
     // ---- 3. Patch winre.wim ----
