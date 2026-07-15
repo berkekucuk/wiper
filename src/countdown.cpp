@@ -2,7 +2,6 @@
 
 #include <windows.h>
 #include <conio.h>
-
 #include <iostream>
 
 using namespace std;
@@ -37,4 +36,4 @@ namespace Countdown
         cout << "\r  Rebooting...                                      \n\n";
         return true;
     }
-} // namespace Countdown
+} // namespace

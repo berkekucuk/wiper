@@ -10,9 +10,7 @@ using namespace std;
 
 namespace WinREScriptGenerator
 {
-    bool GenerateDiskWipeScripts(const string& mountDir,
-                                 int diskNumber,
-                                 WinREPatcher::WipeStrategy strategy)
+    bool GenerateDiskWipeScripts(const string& mountDir, int diskNumber, WinREPatcher::WipeStrategy strategy)
     {
         if (strategy == WinREPatcher::WipeStrategy::ZeroFill)
         {

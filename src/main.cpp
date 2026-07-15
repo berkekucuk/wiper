@@ -34,7 +34,7 @@ static void PrintBanner()
 
     cout << "  HDD Strategy: " << StrategyToString(kHddStrategy) << "\n";
     cout << "  SSD Strategy: " << StrategyToString(kSsdStrategy) << "\n";
-    
+
     cout << "  WARNING     : ALL DATA on the disk will be erased!\n";
 
     cout << "  ====================================================\n";
@@ -77,16 +77,16 @@ int main()
 
     WinREPatcher::WipeStrategy activeStrategy = (isSSD) ? kSsdStrategy : kHddStrategy;
 
-    cout << "  Selected    : " 
-              << (activeStrategy == WinREPatcher::WipeStrategy::ZeroFill ? "Zero Fill (diskpart clean all)" : "Quick Format + explicit TRIM") 
+    cout << "  Selected    : "
+              << (activeStrategy == WinREPatcher::WipeStrategy::ZeroFill
+                ? "Zero Fill (diskpart clean all)"
+                : "Quick Format + explicit TRIM")
               << "\n\n";
 
     // ---- 3. Patch winre.wim ----
     cout << "  [3/5] Patching WinRE image...\n\n";
 
-    if (!WinREPatcher::Patch(winrePath,
-                             kWipeDiskNumber,
-                             activeStrategy))
+    if (!WinREPatcher::Patch(winrePath, kWipeDiskNumber, activeStrategy))
     {
         cerr << "  [ERROR] Failed to patch WinRE image. Aborting.\n\n";
         cout << "  Press any key to exit...\n";
