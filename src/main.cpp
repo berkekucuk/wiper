@@ -11,6 +11,7 @@
 #include <string>
 
 using namespace std;
+using namespace CLIUtils::Colors;
 
 // Target physical disk number (diskpart: 'list disk')
 constexpr int kWipeDiskNumber = 0;
@@ -21,19 +22,21 @@ constexpr WinREPatcher::WipeStrategy kSsdStrategy = WinREPatcher::WipeStrategy::
 
 int main()
 {
+    CLIUtils::EnableColors();
     CLIUtils::PrintBanner(kWipeDiskNumber, kHddStrategy, kSsdStrategy);
 
     // ---- 1. Locate WinRE ----
-    cout << "  [1/5] Locating WinRE...\n\n";
+    cout << BCYAN << "  [1/5] " << RESET << "Locating WinRE...\n\n";
 
     string winrePath;
     string winreStatus;
 
     if (!WinREFinder::FindLocation(winrePath, winreStatus))
     {
-        cerr << "  [ERROR] WinRE location could not be determined.\n"
-                     "          WinRE may not be installed or enabled,\n"
-                     "          or the program may not be running as Administrator.\n\n";
+        cerr << BRED << "  [ERROR] " << RESET
+             << "WinRE location could not be determined.\n"
+             << "          WinRE may not be installed or enabled,\n"
+             << "          or the program may not be running as Administrator.\n\n";
         cout << "  Press any key to exit...\n";
         cin.get();
         return EXIT_FAILURE;
@@ -41,9 +44,9 @@ int main()
 
     WinREFinder::PrintInfo(winrePath, winreStatus);
 
-    
     // ---- 2. Detect disk type ----
-    cout << "  [2/5] Detecting disk type for Disk " << kWipeDiskNumber << "...\n\n";
+    cout << BCYAN << "  [2/5] " << RESET
+         << "Detecting disk type for Disk " << kWipeDiskNumber << "...\n\n";
 
     DiskDetector::DiskType diskType = DiskDetector::Detect(kWipeDiskNumber);
 
@@ -51,36 +54,32 @@ int main()
         (diskType == DiskDetector::DiskType::SSD_SATA ||
          diskType == DiskDetector::DiskType::SSD_NVME);
 
-    cout << "  Disk " << kWipeDiskNumber << " : "
-              << DiskDetector::ToString(diskType) << "\n";
+    cout << "  Disk type    : " << DiskDetector::ToString(diskType) << "\n";
 
     WinREPatcher::WipeStrategy activeStrategy = (isSSD) ? kSsdStrategy : kHddStrategy;
 
-    cout << "  Selected    : "
-              << CLIUtils::StrategyToString(activeStrategy)
-              << "\n\n";
-
+    cout << "  Strategy     : " << CLIUtils::StrategyToString(activeStrategy) << "\n\n";
 
     // ---- 3. Patch winre.wim ----
-    cout << "  [3/5] Patching WinRE image...\n\n";
+    cout << BCYAN << "  [3/5] " << RESET << "Patching WinRE image...\n\n";
 
     if (!WinREPatcher::Patch(winrePath, kWipeDiskNumber, activeStrategy))
     {
-        cerr << "  [ERROR] Failed to patch WinRE image. Aborting.\n\n";
+        cerr << BRED << "  [ERROR] " << RESET
+             << "Failed to patch WinRE image. Aborting.\n\n";
         cout << "  Press any key to exit...\n";
         cin.get();
         return EXIT_FAILURE;
     }
 
-
     // ---- 4. Countdown ----
-    cout << "  [4/5] Starting countdown...\n\n";
+    cout << BCYAN << "  [4/5] " << RESET << "Starting countdown...\n\n";
 
     if (!Countdown::Run(10))
     {
         cout << "  Operation cancelled. Restoring original winre.wim...\n\n";
 
-        // Resolve the exact .wim path so Rollback() can find the .bak
+        // Resolve the exact .wim path so Rollback() can find the temp backup.
         const string wimPath = WIMResolver::ResolveWimPath(winrePath);
         if (!wimPath.empty())
         {
@@ -88,8 +87,9 @@ int main()
         }
         else
         {
-            cerr << "  [WARN] Could not resolve winre.wim path for rollback.\n"
-                      "         Backup file (.bak) may remain alongside winre.wim.\n";
+            cerr << YELLOW << "  [WARN] " << RESET
+                 << "Could not resolve winre.wim path for rollback.\n"
+                 << "         Backup file may remain in %TEMP%.\n";
         }
 
         cout << "  System will not be restarted.\n\n"
@@ -98,13 +98,13 @@ int main()
         return EXIT_SUCCESS;
     }
 
-
     // ---- 5. Reboot into WinRE ----
-    cout << "  [5/5] Initiating WinRE reboot...\n\n";
+    cout << BCYAN << "  [5/5] " << RESET << "Initiating WinRE reboot...\n\n";
 
     if (!Reboot::BootIntoWinRE())
     {
-        cerr << "\n  [ERROR] Reboot could not be initiated.\n\n";
+        cerr << "\n" << BRED << "  [ERROR] " << RESET
+             << "Reboot could not be initiated.\n\n";
         cout << "  Press any key to exit...\n";
         cin.get();
         return EXIT_FAILURE;

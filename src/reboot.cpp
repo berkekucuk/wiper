@@ -1,7 +1,10 @@
 #include "reboot.h"
+#include "cli_utils.h"
 #include <windows.h>
 
 #include <iostream>
+
+using namespace CLIUtils::Colors;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -104,21 +107,23 @@ namespace Reboot
         // 1. Acquire shutdown privilege
         if (!EnableShutdownPrivilege())
         {
-            std::cerr << "  [ERROR] Failed to acquire shutdown privilege. "
+            std::cerr << BRED << "  [ERROR] " << RESET
+                      << "Failed to acquire shutdown privilege. "
                          "Run the program as Administrator.\n";
             return false;
         }
 
         // 2. Set the one-time WinRE boot flag
-        std::cout << "  Sending reagentc /boottore...\n";
+        std::cout << "  Sending " << CYAN << "reagentc /boottore" << RESET << "...\n";
         if (!SetWinREBootFlag())
         {
-            std::cerr << "  [ERROR] reagentc /boottore failed.\n"
+            std::cerr << BRED << "  [ERROR] " << RESET
+                      << "reagentc /boottore failed.\n"
                          "          Make sure the program is running as Administrator\n"
                          "          and that WinRE is enabled on this system.\n";
             return false;
         }
-        std::cout << "  WinRE boot flag set successfully.\n";
+        std::cout << "  " << BGREEN << "WinRE boot flag set successfully." << RESET << "\n";
 
         // 3. Restart the system
         std::cout << "  Restarting system...\n";
@@ -136,8 +141,9 @@ namespace Reboot
                     TRUE,             // restart
                     SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_MINOR_OTHER))
             {
-                std::cerr << "  [ERROR] Failed to send restart command. "
-                             "Error code: " << GetLastError() << "\n";
+                std::cerr << BRED << "  [ERROR] " << RESET
+                          << "Failed to send restart command. "
+                          << "Error code: " << GetLastError() << "\n";
                 return false;
             }
         }

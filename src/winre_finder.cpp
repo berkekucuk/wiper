@@ -1,4 +1,5 @@
 #include "winre_finder.h"
+#include "cli_utils.h"
 #include <windows.h>
 
 #include <array>
@@ -8,6 +9,7 @@
 #include <string>
 
 using namespace std;
+using namespace CLIUtils::Colors;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -164,12 +166,12 @@ namespace WinREFinder
     void PrintInfo(const string& path, const string& status)
     {
         cout << "\n";
-        cout << "  +--------------------------------------------------+\n";
-        cout << "  |         Windows Recovery Environment (WinRE)     |\n";
-        cout << "  +--------------------------------------------------+\n";
-        cout << "  | Status : " << status << "\n";
-        cout << "  | Path   : " << path   << "\n";
-        cout << "  +--------------------------------------------------+\n";
+        cout << "  " << CYAN << "+--------------------------------------------------+" << RESET << "\n";
+        cout << "  " << CYAN << "|" << RESET << "        Windows Recovery Environment (WinRE)      " << CYAN << "|" << RESET << "\n";
+        cout << "  " << CYAN << "+--------------------------------------------------+" << RESET << "\n";
+        cout << "  " << CYAN << "|" << RESET << " Status : " << status << "\n";
+        cout << "  " << CYAN << "|" << RESET << " Path   : " << path   << "\n";
+        cout << "  " << CYAN << "+--------------------------------------------------+" << RESET << "\n";
         cout << "\n";
     }
 } // namespace WinREFinder

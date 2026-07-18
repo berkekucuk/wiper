@@ -1,4 +1,5 @@
 #include "winre_script_generator.h"
+#include "cli_utils.h"
 
 #include <fstream>
 #include <iostream>
@@ -6,6 +7,7 @@
 #include <string>
 
 using namespace std;
+using namespace CLIUtils::Colors;
 
 namespace WinREScriptGenerator
 {
@@ -171,20 +173,21 @@ namespace WinREScriptGenerator
                 original = oss.str();
             }
         }
-        cout << "  --- winpeshl.ini (before) ---\n"
+        cout << "  " << YELLOW << "--- winpeshl.ini (before) ---" << RESET << "\n"
                   << (original.empty() ? "  (empty)\n" : original) << "\n";
 
         ofstream out(iniPath, ios::trunc);
         if (!out.is_open())
         {
-            cerr << "  [ERROR] Cannot open winpeshl.ini for writing.\n";
+            cerr << "  " << BRED << "[ERROR]" << RESET
+                 << " Cannot open winpeshl.ini for writing.\n";
             return false;
         }
 
         out << "[LaunchApps]\r\n";
         out << "X:\\Windows\\System32\\cmd.exe, /c X:\\Windows\\System32\\wipe_launch.cmd\r\n";
 
-        cout << "  --- winpeshl.ini (after) ---\n"
+        cout << "  " << YELLOW << "--- winpeshl.ini (after) ---" << RESET << "\n"
                   << "  [LaunchApps]\n"
                   << "  X:\\Windows\\System32\\cmd.exe, "
                      "/c X:\\Windows\\System32\\wipe_launch.cmd\n\n";

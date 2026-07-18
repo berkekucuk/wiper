@@ -1,8 +1,10 @@
 #include "dism_utils.h"
+#include "cli_utils.h"
 
 #include <iostream>
 
 using namespace std;
+using namespace CLIUtils::Colors;
 
 namespace DISMUtils
 {
@@ -22,8 +24,9 @@ namespace DISMUtils
 
         if (!created)
         {
-            cerr << "  [ERROR] CreateProcess failed: " << cmd
-                      << " (code " << GetLastError() << ")\n";
+            cerr << "  " << BRED << "[ERROR]" << RESET
+                 << " CreateProcess failed: " << cmd
+                 << " (code " << GetLastError() << ")\n";
             return false;
         }
 
@@ -86,7 +89,7 @@ namespace DISMUtils
 
         if (!RunVisible(mountCmd, 120'000))
         {
-            cerr << "\n  [ERROR] DISM mount failed.\n";
+            cerr << "\n  " << BRED << "[ERROR]" << RESET << " DISM mount failed.\n";
             RemoveDirectoryA(mountDir.c_str());
             return false;
         }
@@ -102,8 +105,9 @@ namespace DISMUtils
 
         if (!RunVisible(unmountCmd, 120'000))
         {
-            cerr << "\n  [ERROR] DISM commit failed.\n"
-                         "          Run 'dism /Cleanup-Mountpoints' to clean up.\n";
+            cerr << "\n  " << BRED << "[ERROR]" << RESET
+                 << " DISM commit failed.\n"
+                    "          Run 'dism /Cleanup-Mountpoints' to clean up.\n";
             RemoveDirectoryA(mountDir.c_str());
             return false;
         }

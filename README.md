@@ -71,6 +71,11 @@ silme scriptleri gömülür ve WinRE'nin başlangıç ayar dosyası
 (`winpeshl.ini`) değiştirilerek açılışta doğrudan bu scriptlerin
 çalışması sağlanır. Ardından değişiklikler `winre.wim`'e geri yazılır.
 
+> **Güvenlik notu:** Patch başlamadan önce `winre.wim`'in bir yedeği
+> `%TEMP%\winre_wiper_backup_<PID>.wim` konumuna alınır. Geri sayım
+> sırasında herhangi bir tuşa basılırsa bu yedek otomatik olarak geri
+> yüklenir ve `winre.wim` orijinal haline döner.
+
 **[4/5] Geri sayım**
 10 saniye geri sayım başlar. Bu sürede herhangi bir tuşa basılırsa
 işlem iptal edilir.
@@ -203,10 +208,11 @@ partition seçimi diskpart ile, silme ise format.exe ile yapıldı.
 
 | Değişiklik | Kalıcı mı? |
 |------------|-----------|
-| `winre.wim` içindeki scriptler | ✅ Kalıcı |
+| `winre.wim` içindeki scriptler | ❌ Geçici — iptal edilirse `%TEMP%` yedeğinden otomatik geri yüklenir |
 | Silinen veri | ✅ Kalıcı — geri alınamaz |
 | BCD bootsequence | ❌ 1 boot sonra otomatik silinir |
 | DISM mount klasörü | ❌ Commit sonrası silinir |
+| `%TEMP%` yedek dosyası | ❌ Rollback veya reboot sonrası anlamsız kalır |
 
 ---
 
