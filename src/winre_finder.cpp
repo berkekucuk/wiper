@@ -146,7 +146,8 @@ namespace WinREFinder
         outStatus = "Unknown";
 
         // 1. Try reagentc /info first (most reliable source)
-        string reagentOutput = RunCommand("reagentc /info 2>&1");
+        // Use the full system path to prevent PATH-based binary hijacking.
+        string reagentOutput = RunCommand("C:\\Windows\\System32\\reagentc.exe /info 2>&1");
         if (!reagentOutput.empty())
         {
             if (ParseReagentcOutput(reagentOutput, outPath, outStatus))

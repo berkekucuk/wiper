@@ -7,14 +7,23 @@ using namespace std;
 
 namespace
 {
-    /** @brief Scans A-Z for <drive>:\Recovery\WindowsRE\winre.wim. */
+    /** @brief Scans A-Z for <drive>:\Recovery\WindowsRE\winre.wim.
+     *         Only fixed (local) drives are checked to avoid network hangs
+     *         and path-spoofing via mapped shares.
+     */
     string ScanDrivesForWim()
     {
         for (char d = 'A'; d <= 'Z'; ++d)
         {
-            string p;
-            p += d;
-            p += ":\\Recovery\\WindowsRE\\winre.wim";
+            string root;
+            root += d;
+            root += ":\\";
+
+            // Skip non-fixed drives: network shares, CD-ROMs, removable media.
+            if (GetDriveTypeA(root.c_str()) != DRIVE_FIXED)
+                continue;
+
+            string p = root + "Recovery\\WindowsRE\\winre.wim";
             if (GetFileAttributesA(p.c_str()) != INVALID_FILE_ATTRIBUTES)
                 return p;
         }

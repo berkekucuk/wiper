@@ -4,6 +4,7 @@
 #include "reboot.h"
 #include "winre_finder.h"
 #include "winre_patcher.h"
+#include "wim_resolver.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -40,6 +41,7 @@ int main()
 
     WinREFinder::PrintInfo(winrePath, winreStatus);
 
+    
     // ---- 2. Detect disk type ----
     cout << "  [2/5] Detecting disk type for Disk " << kWipeDiskNumber << "...\n\n";
 
@@ -58,6 +60,7 @@ int main()
               << CLIUtils::StrategyToString(activeStrategy)
               << "\n\n";
 
+
     // ---- 3. Patch winre.wim ----
     cout << "  [3/5] Patching WinRE image...\n\n";
 
@@ -69,16 +72,32 @@ int main()
         return EXIT_FAILURE;
     }
 
+
     // ---- 4. Countdown ----
     cout << "  [4/5] Starting countdown...\n\n";
 
     if (!Countdown::Run(10))
     {
-        cout << "  Operation cancelled. System will not be restarted.\n\n";
-        cout << "  Press any key to exit...\n";
+        cout << "  Operation cancelled. Restoring original winre.wim...\n\n";
+
+        // Resolve the exact .wim path so Rollback() can find the .bak
+        const string wimPath = WIMResolver::ResolveWimPath(winrePath);
+        if (!wimPath.empty())
+        {
+            WinREPatcher::Rollback(wimPath);
+        }
+        else
+        {
+            cerr << "  [WARN] Could not resolve winre.wim path for rollback.\n"
+                      "         Backup file (.bak) may remain alongside winre.wim.\n";
+        }
+
+        cout << "  System will not be restarted.\n\n"
+             << "  Press any key to exit...\n";
         cin.get();
         return EXIT_SUCCESS;
     }
+
 
     // ---- 5. Reboot into WinRE ----
     cout << "  [5/5] Initiating WinRE reboot...\n\n";

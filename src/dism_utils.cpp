@@ -27,12 +27,29 @@ namespace DISMUtils
             return false;
         }
 
-        WaitForSingleObject(pi.hProcess, timeoutMs);
+        DWORD waitResult = WaitForSingleObject(pi.hProcess, timeoutMs);
+
+        if (waitResult == WAIT_TIMEOUT)
+        {
+            cerr << "  [ERROR] Process timed out after " << (timeoutMs / 1000)
+                      << " s. Forcibly terminating: " << cmd << "\n";
+            TerminateProcess(pi.hProcess, 1);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+            return false;
+        }
 
         DWORD exitCode = 1;
         GetExitCodeProcess(pi.hProcess, &exitCode);
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
+
+        // STILL_ACTIVE (259) means the process hasn't actually exited — treat as failure.
+        if (exitCode == STILL_ACTIVE)
+        {
+            cerr << "  [ERROR] Process reported STILL_ACTIVE after wait: " << cmd << "\n";
+            return false;
+        }
 
         return (exitCode == 0);
     }

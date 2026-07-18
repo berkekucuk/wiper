@@ -73,7 +73,16 @@ namespace
         if (!created)
             return false;
 
-        WaitForSingleObject(pi.hProcess, 10'000); // wait at most 10 seconds
+        DWORD waitResult = WaitForSingleObject(pi.hProcess, 10'000); // wait at most 10 seconds
+
+        if (waitResult == WAIT_TIMEOUT)
+        {
+            std::cerr << "  [ERROR] reagentc /boottore timed out. Forcibly terminating.\n";
+            TerminateProcess(pi.hProcess, 1);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+            return false;
+        }
 
         DWORD exitCode = 0;
         GetExitCodeProcess(pi.hProcess, &exitCode);

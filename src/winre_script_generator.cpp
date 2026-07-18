@@ -9,8 +9,20 @@ using namespace std;
 
 namespace WinREScriptGenerator
 {
+    // Path prefix for files embedded inside the mounted WinRE image.
+    // At boot time WinRE maps its System32 as X:\Windows\System32.
+    static constexpr const char* kWinRESys32 = "X:\\Windows\\System32\\";
+
     bool GenerateDiskWipeScripts(const string& mountDir, int diskNumber, WinREPatcher::WipeStrategy strategy)
     {
+        // Validate disk number range before writing any scripts.
+        // diskpart accepts 0-127; anything outside is invalid.
+        if (diskNumber < 0 || diskNumber > 127)
+        {
+            cerr << "  [ERROR] Invalid disk number: " << diskNumber
+                      << ". Must be in range 0-127.\n";
+            return false;
+        }
         switch (strategy)
         {
         case WinREPatcher::WipeStrategy::ZeroFill:
@@ -36,7 +48,7 @@ namespace WinREScriptGenerator
                 s << "echo  [1/2] Running diskpart clean all...\r\n";
                 s << "echo  This may take 30-60 minutes for large drives.\r\n";
                 s << "echo.\r\n";
-                s << "diskpart /s X:\\Windows\\System32\\dp_zerofill.txt\r\n";
+                s << "diskpart /s " << kWinRESys32 << "dp_zerofill.txt\r\n";
                 s << "echo.\r\n";
                 s << "echo  [2/2] Disk wiped. Shutting down in 5 seconds...\r\n";
                 s << "ping 127.0.0.1 -n 6 > nul\r\n";
@@ -76,14 +88,14 @@ namespace WinREScriptGenerator
                     s << "echo  ====================================================\r\n";
                     s << "echo.\r\n";
                     s << "echo  [1/3] Preparing Disk (removing partitions ^& assigning Z:)...\r\n";
-                    s << "diskpart /s X:\\Windows\\System32\\dp_randomfill_prep.txt\r\n";
+                    s << "diskpart /s " << kWinRESys32 << "dp_randomfill_prep.txt\r\n";
                     s << "echo.\r\n";
                     s << "echo  [2/3] Formatting with random data (/P:1)...\r\n";
                     s << "echo  This may take SEVERAL HOURS for large drives.\r\n";
                     s << "format Z: /FS:NTFS /P:1 /Y\r\n";
                     s << "echo.\r\n";
                     s << "echo  [3/3] Final cleanup (returning disk to RAW state)...\r\n";
-                    s << "diskpart /s X:\\Windows\\System32\\dp_randomfill_cleanup.txt\r\n";
+                    s << "diskpart /s " << kWinRESys32 << "dp_randomfill_cleanup.txt\r\n";
                     s << "echo.\r\n";
                     s << "echo  Wipe complete. Shutting down in 5 seconds...\r\n";
                     s << "ping 127.0.0.1 -n 6 > nul\r\n";
@@ -124,14 +136,14 @@ namespace WinREScriptGenerator
                     s << "echo  ====================================================\r\n";
                     s << "echo.\r\n";
                     s << "echo  [1/3] Preparing SSD (removing partitions ^& assigning Z:)...\r\n";
-                    s << "diskpart /s X:\\Windows\\System32\\dp_ssd_prep.txt\r\n";
+                    s << "diskpart /s " << kWinRESys32 << "dp_ssd_prep.txt\r\n";
                     s << "echo.\r\n";
                     s << "echo  [2/3] Quick format + Explicit TRIM (wipes NAND cells)...\r\n";
                     s << "format Z: /FS:NTFS /Q /Y\r\n";
                     s << "defrag Z: /L\r\n";
                     s << "echo.\r\n";
                     s << "echo  [3/3] Final cleanup (returning disk to RAW state)...\r\n";
-                    s << "diskpart /s X:\\Windows\\System32\\dp_ssd_cleanup.txt\r\n";
+                    s << "diskpart /s " << kWinRESys32 << "dp_ssd_cleanup.txt\r\n";
                     s << "echo.\r\n";
                     s << "echo  Wipe complete. Shutting down in 5 seconds...\r\n";
                     s << "ping 127.0.0.1 -n 6 > nul\r\n";

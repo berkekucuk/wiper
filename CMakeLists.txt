@@ -6,9 +6,9 @@ set(CMAKE_CXX_STANDARD          17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS        OFF)
 
-# Windows only
-if(NOT WIN32)
-    message(FATAL_ERROR "This project can only be built on Windows.")
+# Target platform must be Windows (supports cross-compilation scenarios)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    message(FATAL_ERROR "Target platform must be Windows (CMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}).")
 endif()
 
 # ── Source files ──────────────────────────────────────────────────────────────
