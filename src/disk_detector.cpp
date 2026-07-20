@@ -5,14 +5,12 @@
 #include <iostream>
 #include <string>
 
-using namespace std;
-
 namespace DiskDetector
 {
     DiskType Detect(int diskNumber)
     {
         // Open the physical drive for property queries (no data access needed)
-        string path = "\\\\.\\PhysicalDrive" + to_string(diskNumber);
+        std::string path = "\\\\.\\PhysicalDrive" + std::to_string(diskNumber);
 
         HANDLE h = CreateFileA(
             path.c_str(),
@@ -25,7 +23,7 @@ namespace DiskDetector
 
         if (h == INVALID_HANDLE_VALUE)
         {
-            cerr << "  [WARN] Cannot open " << path
+            std::cerr << "  [WARN] Cannot open " << path
                       << " (code " << GetLastError()
                       << "). Defaulting to HDD strategy.\n";
             return DiskType::Unknown;
@@ -70,7 +68,7 @@ namespace DiskDetector
             }
             else
             {
-                cerr << "  [WARN] SeekPenalty query failed "
+                std::cerr << "  [WARN] SeekPenalty query failed "
                           << "(code " << GetLastError()
                           << "). Defaulting to HDD strategy.\n";
             }

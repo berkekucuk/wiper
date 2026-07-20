@@ -6,22 +6,19 @@
 #include <sstream>
 #include <string>
 
-using namespace std;
-using namespace CLIUtils::Colors;
-
 namespace WinREScriptGenerator
 {
     // Path prefix for files embedded inside the mounted WinRE image.
     // At boot time WinRE maps its System32 as X:\Windows\System32.
     static constexpr const char* kWinRESys32 = "X:\\Windows\\System32\\";
 
-    bool GenerateDiskWipeScripts(const string& mountDir, int diskNumber, WinREPatcher::WipeStrategy strategy)
+    bool GenerateDiskWipeScripts(const std::string& mountDir, int diskNumber, WinREPatcher::WipeStrategy strategy)
     {
         // Validate disk number range before writing any scripts.
         // diskpart accepts 0-127; anything outside is invalid.
         if (diskNumber < 0 || diskNumber > 127)
         {
-            cerr << "  [ERROR] Invalid disk number: " << diskNumber
+            std::cerr << "  [ERROR] Invalid disk number: " << diskNumber
                       << ". Must be in range 0-127.\n";
             return false;
         }
@@ -29,16 +26,16 @@ namespace WinREScriptGenerator
         {
         case WinREPatcher::WipeStrategy::ZeroFill:
             {
-                string p = mountDir + "\\Windows\\System32\\dp_zerofill.txt";
-                ofstream s(p, ios::trunc);
+                std::string p = mountDir + "\\Windows\\System32\\dp_zerofill.txt";
+                std::ofstream s(p, std::ios::trunc);
                 if (!s.is_open()) return false;
                 s << "select disk " << diskNumber << "\r\n";
                 s << "clean all\r\n";
                 s << "exit\r\n";
             }
             {
-                string p = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
-                ofstream s(p, ios::trunc);
+                std::string p = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
+                std::ofstream s(p, std::ios::trunc);
                 if (!s.is_open()) return false;
                 s << "@echo off\r\n";
                 s << "echo.\r\n";
@@ -61,8 +58,8 @@ namespace WinREScriptGenerator
         case WinREPatcher::WipeStrategy::RandomFill:
             {
                 {
-                    string p = mountDir + "\\Windows\\System32\\dp_randomfill_prep.txt";
-                    ofstream s(p, ios::trunc);
+                    std::string p = mountDir + "\\Windows\\System32\\dp_randomfill_prep.txt";
+                    std::ofstream s(p, std::ios::trunc);
                     if (!s.is_open()) return false;
                     s << "select disk " << diskNumber << "\r\n";
                     s << "clean\r\n";
@@ -71,16 +68,16 @@ namespace WinREScriptGenerator
                     s << "exit\r\n";
                 }
                 {
-                    string p = mountDir + "\\Windows\\System32\\dp_randomfill_cleanup.txt";
-                    ofstream s(p, ios::trunc);
+                    std::string p = mountDir + "\\Windows\\System32\\dp_randomfill_cleanup.txt";
+                    std::ofstream s(p, std::ios::trunc);
                     if (!s.is_open()) return false;
                     s << "select disk " << diskNumber << "\r\n";
                     s << "clean\r\n";
                     s << "exit\r\n";
                 }
                 {
-                    string p = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
-                    ofstream s(p, ios::trunc);
+                    std::string p = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
+                    std::ofstream s(p, std::ios::trunc);
                     if (!s.is_open()) return false;
                     s << "@echo off\r\n";
                     s << "echo.\r\n";
@@ -109,8 +106,8 @@ namespace WinREScriptGenerator
         case WinREPatcher::WipeStrategy::QuickFormatAndTrim:
             {
                 {
-                    string p = mountDir + "\\Windows\\System32\\dp_ssd_prep.txt";
-                    ofstream s(p, ios::trunc);
+                    std::string p = mountDir + "\\Windows\\System32\\dp_ssd_prep.txt";
+                    std::ofstream s(p, std::ios::trunc);
                     if (!s.is_open()) return false;
                     s << "select disk " << diskNumber << "\r\n";
                     s << "clean\r\n";
@@ -119,16 +116,16 @@ namespace WinREScriptGenerator
                     s << "exit\r\n";
                 }
                 {
-                    string p = mountDir + "\\Windows\\System32\\dp_ssd_cleanup.txt";
-                    ofstream s(p, ios::trunc);
+                    std::string p = mountDir + "\\Windows\\System32\\dp_ssd_cleanup.txt";
+                    std::ofstream s(p, std::ios::trunc);
                     if (!s.is_open()) return false;
                     s << "select disk " << diskNumber << "\r\n";
                     s << "clean\r\n";
                     s << "exit\r\n";
                 }
                 {
-                    string p = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
-                    ofstream s(p, ios::trunc);
+                    std::string p = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
+                    std::ofstream s(p, std::ios::trunc);
                     if (!s.is_open()) return false;
                     s << "@echo off\r\n";
                     s << "echo.\r\n";
@@ -158,28 +155,28 @@ namespace WinREScriptGenerator
         return true;
     }
 
-    bool PatchWinpeshl(const string& mountDir)
+    bool PatchWinpeshl(const std::string& mountDir)
     {
-        string iniPath = mountDir + "\\Windows\\System32\\winpeshl.ini";
+        std::string iniPath = mountDir + "\\Windows\\System32\\winpeshl.ini";
 
         // Show current content
-        string original;
+        std::string original;
         {
-            ifstream in(iniPath);
+            std::ifstream in(iniPath);
             if (in.is_open())
             {
-                ostringstream oss;
+                std::ostringstream oss;
                 oss << in.rdbuf();
                 original = oss.str();
             }
         }
-        cout << "  " << YELLOW << "--- winpeshl.ini (before) ---" << RESET << "\n"
+        std::cout << "  " << CLIUtils::Colors::YELLOW << "--- winpeshl.ini (before) ---" << CLIUtils::Colors::RESET << "\n"
                   << (original.empty() ? "  (empty)\n" : original) << "\n";
 
-        ofstream out(iniPath, ios::trunc);
+        std::ofstream out(iniPath, std::ios::trunc);
         if (!out.is_open())
         {
-            cerr << "  " << BRED << "[ERROR]" << RESET
+            std::cerr << "  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET
                  << " Cannot open winpeshl.ini for writing.\n";
             return false;
         }
@@ -187,7 +184,7 @@ namespace WinREScriptGenerator
         out << "[LaunchApps]\r\n";
         out << "X:\\Windows\\System32\\cmd.exe, /c X:\\Windows\\System32\\wipe_launch.cmd\r\n";
 
-        cout << "  " << YELLOW << "--- winpeshl.ini (after) ---" << RESET << "\n"
+        std::cout << "  " << CLIUtils::Colors::YELLOW << "--- winpeshl.ini (after) ---" << CLIUtils::Colors::RESET << "\n"
                   << "  [LaunchApps]\n"
                   << "  X:\\Windows\\System32\\cmd.exe, "
                      "/c X:\\Windows\\System32\\wipe_launch.cmd\n\n";

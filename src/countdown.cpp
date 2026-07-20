@@ -5,21 +5,19 @@
 #include <conio.h>
 #include <iostream>
 
-using namespace std;
-using namespace CLIUtils::Colors;
 
 namespace Countdown
 {
     bool Run(int seconds)
     {
-        cout << "  Press " << YELLOW << "any key" << RESET << " to cancel.\n\n";
+        std::cout << "  Press " << CLIUtils::Colors::YELLOW << "any key" << CLIUtils::Colors::RESET << " to cancel.\n\n";
 
         for (int remaining = seconds; remaining > 0; --remaining)
         {
             // Overwrite the current line with the updated countdown
-            cout << "\r  " << CYAN << "Rebooting into WinRE in: "
-                      << BOLD << remaining << RESET << CYAN
-                      << " second(s)..." << RESET << "   " << flush;
+            std::cout << "\r  " << CLIUtils::Colors::CYAN << "Rebooting into WinRE in: "
+                      << CLIUtils::Colors::BOLD << remaining << CLIUtils::Colors::RESET << CLIUtils::Colors::CYAN
+                      << " second(s)..." << CLIUtils::Colors::RESET << "   " << std::flush;
 
             // Split each second into 100 ms slices so key detection
             // responds within ~100 ms.
@@ -28,7 +26,7 @@ namespace Countdown
                 if (_kbhit())
                 {
                     _getch(); // consume the key
-                    cout << "\n\n  " << YELLOW << "[CANCELLED]" << RESET
+                    std::cout << "\n\n  " << CLIUtils::Colors::YELLOW << "[CANCELLED]" << CLIUtils::Colors::RESET
                          << " Operation stopped by user.\n\n";
                     return false;
                 }
@@ -36,7 +34,7 @@ namespace Countdown
             }
         }
 
-        cout << "\r  " << BGREEN << "Rebooting..." << RESET
+        std::cout << "\r  " << CLIUtils::Colors::BGREEN << "Rebooting..." << CLIUtils::Colors::RESET
              << "                                      \n\n";
         return true;
     }

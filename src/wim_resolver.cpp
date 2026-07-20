@@ -3,19 +3,17 @@
 
 #include <iostream>
 
-using namespace std;
-
 namespace
 {
     /** @brief Scans A-Z for <drive>:\Recovery\WindowsRE\winre.wim.
      *         Only fixed (local) drives are checked to avoid network hangs
      *         and path-spoofing via mapped shares.
      */
-    string ScanDrivesForWim()
+    std::string ScanDrivesForWim()
     {
         for (char d = 'A'; d <= 'Z'; ++d)
         {
-            string root;
+            std::string root;
             root += d;
             root += ":\\";
 
@@ -23,7 +21,7 @@ namespace
             if (GetDriveTypeA(root.c_str()) != DRIVE_FIXED)
                 continue;
 
-            string p = root + "Recovery\\WindowsRE\\winre.wim";
+            std::string p = root + "Recovery\\WindowsRE\\winre.wim";
             if (GetFileAttributesA(p.c_str()) != INVALID_FILE_ATTRIBUTES)
                 return p;
         }
@@ -33,14 +31,14 @@ namespace
 
 namespace WIMResolver
 {
-    string ResolveWimPath(const string& winreDir)
+    std::string ResolveWimPath(const std::string& winreDir)
     {
-        auto exists = [](const string& p) {
+        auto exists = [](const std::string& p) {
             return GetFileAttributesA(p.c_str()) != INVALID_FILE_ATTRIBUTES;
         };
 
         // Already a .wim path?
-        constexpr string_view ext = ".wim";
+        constexpr std::string_view ext = ".wim";
         if (winreDir.size() >= ext.size() &&
             winreDir.compare(winreDir.size() - ext.size(), ext.size(), ext) == 0 &&
             exists(winreDir))
@@ -49,7 +47,7 @@ namespace WIMResolver
         }
 
         // Append winre.wim to directory
-        string candidate = winreDir;
+        std::string candidate = winreDir;
         if (!candidate.empty() && candidate.back() != '\\')
             candidate += '\\';
         candidate += "winre.wim";
@@ -58,7 +56,7 @@ namespace WIMResolver
             return candidate;
 
         // Fallback: scan drive letters
-        cout << "  Primary path not directly accessible; scanning drives...\n";
+        std::cout << "  Primary path not directly accessible; scanning drives...\n";
         return ScanDrivesForWim();
     }
 }

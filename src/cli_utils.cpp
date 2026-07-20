@@ -3,9 +3,6 @@
 #include <windows.h>
 #include <iostream>
 
-using namespace std;
-using namespace CLIUtils::Colors;
-
 namespace CLIUtils
 {
     void EnableColors()
@@ -32,16 +29,16 @@ namespace CLIUtils
                      WinREPatcher::WipeStrategy hddStrategy,
                      WinREPatcher::WipeStrategy ssdStrategy)
     {
-        cout << "\n";
-        cout << BCYAN << "  ====================================================\n" << RESET;
-        cout << BCYAN << "                        Wiper\n"                           << RESET;
-        cout << BCYAN << "  ====================================================\n" << RESET;
-        cout << "\n";
-        cout << "  Target disk  : Disk " << wipeDiskNumber << "\n";
-        cout << "  HDD strategy : " << StrategyToString(hddStrategy) << "\n";
-        cout << "  SSD strategy : " << StrategyToString(ssdStrategy) << "\n";
-        cout << "\n";
-        cout << BRED << "  WARNING : ALL DATA on the target disk will be erased!\n" << RESET;
-        cout << "\n";
+        std::cout << "\n";
+        std::cout << CLIUtils::Colors::BCYAN << "  ====================================================\n" << CLIUtils::Colors::RESET;
+        std::cout << CLIUtils::Colors::BCYAN << "                        Wiper\n"                           << CLIUtils::Colors::RESET;
+        std::cout << CLIUtils::Colors::BCYAN << "  ====================================================\n" << CLIUtils::Colors::RESET;
+        std::cout << "\n";
+        std::cout << "  Target disk  : Disk " << wipeDiskNumber << "\n";
+        std::cout << "  HDD strategy : " << StrategyToString(hddStrategy) << "\n";
+        std::cout << "  SSD strategy : " << StrategyToString(ssdStrategy) << "\n";
+        std::cout << "\n";
+        std::cout << CLIUtils::Colors::BRED << "  WARNING : ALL DATA on the target disk will be erased!\n" << CLIUtils::Colors::RESET;
+        std::cout << "\n";
     }
 }

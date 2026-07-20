@@ -8,9 +8,6 @@
 #include <sstream>
 #include <string>
 
-using namespace std;
-using namespace CLIUtils::Colors;
-
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -22,10 +19,10 @@ namespace
      * @param cmd Command to execute.
      * @return stdout output of the command, or an empty string on failure.
      */
-    string RunCommand(const string& cmd)
+    std::string RunCommand(const std::string& cmd)
     {
-        string result;
-        array<char, 256> buffer{};
+        std::string result;
+        std::array<char, 256> buffer{};
 
         FILE* pipe = _popen(cmd.c_str(), "r");
         if (!pipe)
@@ -45,7 +42,7 @@ namespace
      * @return true  Read was successful.
      * @return false Registry key not found or could not be read.
      */
-    bool ReadFromRegistry(string& outPath)
+    bool ReadFromRegistry(std::string& outPath)
     {
         // WinRE path may be stored under either of these registry locations.
         const char* keys[] = {
@@ -90,32 +87,32 @@ namespace
      * @return true  Parsing succeeded.
      * @return false Relevant lines were not found in the output.
      */
-    bool ParseReagentcOutput(const string& output,
-                             string&       outPath,
-                             string&       outStatus)
+    bool ParseReagentcOutput(const std::string& output,
+                             std::string&       outPath,
+                             std::string&       outStatus)
     {
         bool foundPath   = false;
         bool foundStatus = false;
 
-        istringstream stream(output);
-        string        line;
+        std::istringstream stream(output);
+        std::string        line;
 
         while (getline(stream, line))
         {
             // Strip leading and trailing whitespace
-            auto trim = [](const string& s) -> string {
+            auto trim = [](const std::string& s) -> std::string {
                 size_t start = s.find_first_not_of(" \t\r\n");
                 size_t end   = s.find_last_not_of(" \t\r\n");
-                return (start == string::npos) ? "" : s.substr(start, end - start + 1);
+                return (start == std::string::npos) ? "" : s.substr(start, end - start + 1);
             };
 
-            string trimmed = trim(line);
+            std::string trimmed = trim(line);
 
             // "Windows RE location:" line
-            if (!foundPath && trimmed.find("Windows RE location:") != string::npos)
+            if (!foundPath && trimmed.find("Windows RE location:") != std::string::npos)
             {
                 size_t colon = trimmed.find(':');
-                if (colon != string::npos)
+                if (colon != std::string::npos)
                 {
                     outPath   = trim(trimmed.substr(colon + 1));
                     foundPath = !outPath.empty();
@@ -123,10 +120,10 @@ namespace
             }
 
             // "Windows RE status:" line
-            if (!foundStatus && trimmed.find("Windows RE status:") != string::npos)
+            if (!foundStatus && trimmed.find("Windows RE status:") != std::string::npos)
             {
                 size_t colon = trimmed.find(':');
-                if (colon != string::npos)
+                if (colon != std::string::npos)
                 {
                     outStatus   = trim(trimmed.substr(colon + 1));
                     foundStatus = !outStatus.empty();
@@ -143,13 +140,13 @@ namespace
 // ---------------------------------------------------------------------------
 namespace WinREFinder
 {
-    bool FindLocation(string& outPath, string& outStatus)
+    bool FindLocation(std::string& outPath, std::string& outStatus)
     {
         outStatus = "Unknown";
 
         // 1. Try reagentc /info first (most reliable source)
         // Use the full system path to prevent PATH-based binary hijacking.
-        string reagentOutput = RunCommand("C:\\Windows\\System32\\reagentc.exe /info 2>&1");
+        std::string reagentOutput = RunCommand("C:\\Windows\\System32\\reagentc.exe /info 2>&1");
         if (!reagentOutput.empty())
         {
             if (ParseReagentcOutput(reagentOutput, outPath, outStatus))
@@ -163,15 +160,15 @@ namespace WinREFinder
         return false;
     }
 
-    void PrintInfo(const string& path, const string& status)
+    void PrintInfo(const std::string& path, const std::string& status)
     {
-        cout << "\n";
-        cout << "  " << CYAN << "+--------------------------------------------------+" << RESET << "\n";
-        cout << "  " << CYAN << "|" << RESET << "        Windows Recovery Environment (WinRE)      " << CYAN << "|" << RESET << "\n";
-        cout << "  " << CYAN << "+--------------------------------------------------+" << RESET << "\n";
-        cout << "  " << CYAN << "|" << RESET << " Status : " << status << "\n";
-        cout << "  " << CYAN << "|" << RESET << " Path   : " << path   << "\n";
-        cout << "  " << CYAN << "+--------------------------------------------------+" << RESET << "\n";
-        cout << "\n";
+        std::cout << "\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "+--------------------------------------------------+" << CLIUtils::Colors::RESET << "\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "|" << CLIUtils::Colors::RESET << "        Windows Recovery Environment (WinRE)      " << CLIUtils::Colors::CYAN << "|" << CLIUtils::Colors::RESET << "\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "+--------------------------------------------------+" << CLIUtils::Colors::RESET << "\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "|" << CLIUtils::Colors::RESET << " Status : " << status << "\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "|" << CLIUtils::Colors::RESET << " Path   : " << path   << "\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "+--------------------------------------------------+" << CLIUtils::Colors::RESET << "\n";
+        std::cout << "\n";
     }
 } // namespace WinREFinder

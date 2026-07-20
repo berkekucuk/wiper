@@ -2,19 +2,17 @@
 #include "cli_utils.h"
 
 #include <iostream>
-
-using namespace std;
-using namespace CLIUtils::Colors;
+#include <string>
 
 namespace DISMUtils
 {
-    bool RunVisible(const string& cmd, DWORD timeoutMs)
+    bool RunVisible(const std::string& cmd, DWORD timeoutMs)
     {
         STARTUPINFOA        si = {};
         PROCESS_INFORMATION pi = {};
         si.cb = sizeof(si);
 
-        string buf = cmd;
+        std::string buf = cmd;
         BOOL created = CreateProcessA(
             nullptr, buf.data(),
             nullptr, nullptr,
@@ -24,7 +22,7 @@ namespace DISMUtils
 
         if (!created)
         {
-            cerr << "  " << BRED << "[ERROR]" << RESET
+            std::cerr << "  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET
                  << " CreateProcess failed: " << cmd
                  << " (code " << GetLastError() << ")\n";
             return false;
@@ -34,7 +32,7 @@ namespace DISMUtils
 
         if (waitResult == WAIT_TIMEOUT)
         {
-            cerr << "  [ERROR] Process timed out after " << (timeoutMs / 1000)
+            std::cerr << "  [ERROR] Process timed out after " << (timeoutMs / 1000)
                       << " s. Forcibly terminating: " << cmd << "\n";
             TerminateProcess(pi.hProcess, 1);
             CloseHandle(pi.hProcess);
@@ -50,28 +48,28 @@ namespace DISMUtils
         // STILL_ACTIVE (259) means the process hasn't actually exited — treat as failure.
         if (exitCode == STILL_ACTIVE)
         {
-            cerr << "  [ERROR] Process reported STILL_ACTIVE after wait: " << cmd << "\n";
+            std::cerr << "  [ERROR] Process reported STILL_ACTIVE after wait: " << cmd << "\n";
             return false;
         }
 
         return (exitCode == 0);
     }
 
-    string BuildMountDir()
+    std::string BuildMountDir()
     {
         char tmp[MAX_PATH] = {};
         GetTempPathA(sizeof(tmp), tmp);
 
-        string dir = tmp;
+        std::string dir = tmp;
         if (!dir.empty() && dir.back() == '\\')
             dir.pop_back();
 
         dir += "\\winre_mount_";
-        dir += to_string(GetCurrentProcessId());
+        dir += std::to_string(GetCurrentProcessId());
         return dir;
     }
 
-    void DiscardMount(const string& mountDir)
+    void DiscardMount(const std::string& mountDir)
     {
         RunVisible(
             "dism.exe /Unmount-Image /MountDir:\"" + mountDir + "\" /Discard",
@@ -79,9 +77,9 @@ namespace DISMUtils
         RemoveDirectoryA(mountDir.c_str());
     }
 
-    bool MountImage(const string& wimPath, const string& mountDir)
+    bool MountImage(const std::string& wimPath, const std::string& mountDir)
     {
-        string mountCmd =
+        std::string mountCmd =
             "dism.exe /Mount-Image"
             " /ImageFile:\"" + wimPath + "\""
             " /Index:1"
@@ -89,23 +87,23 @@ namespace DISMUtils
 
         if (!RunVisible(mountCmd, 120'000))
         {
-            cerr << "\n  " << BRED << "[ERROR]" << RESET << " DISM mount failed.\n";
+            std::cerr << "\n  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET << " DISM mount failed.\n";
             RemoveDirectoryA(mountDir.c_str());
             return false;
         }
         return true;
     }
 
-    bool CommitAndUnmount(const string& mountDir)
+    bool CommitAndUnmount(const std::string& mountDir)
     {
-        string unmountCmd =
+        std::string unmountCmd =
             "dism.exe /Unmount-Image"
             " /MountDir:\"" + mountDir + "\""
             " /Commit";
 
         if (!RunVisible(unmountCmd, 120'000))
         {
-            cerr << "\n  " << BRED << "[ERROR]" << RESET
+            std::cerr << "\n  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET
                  << " DISM commit failed.\n"
                     "          Run 'dism /Cleanup-Mountpoints' to clean up.\n";
             RemoveDirectoryA(mountDir.c_str());

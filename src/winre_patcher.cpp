@@ -8,9 +8,6 @@
 #include <iostream>
 #include <string>
 
-using namespace std;
-using namespace CLIUtils::Colors;
-
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -24,17 +21,17 @@ namespace
      * where winre.wim lives (\\?\GLOBALROOT\device\... paths are not writable
      * via CopyFileA).
      */
-    string BuildBackupPath()
+    std::string BuildBackupPath()
     {
         char tmp[MAX_PATH] = {};
         GetTempPathA(sizeof(tmp), tmp);
 
-        string path = tmp;
+        std::string path = tmp;
         if (!path.empty() && path.back() == '\\')
             path.pop_back();
 
         path += "\\winre_wiper_backup_";
-        path += to_string(GetCurrentProcessId());
+        path += std::to_string(GetCurrentProcessId());
         path += ".wim";
         return path;
     }
@@ -45,16 +42,16 @@ namespace
 // ---------------------------------------------------------------------------
 namespace WinREPatcher
 {
-    bool Patch(const string& winreDir, int diskNumber, WipeStrategy strategy)
+    bool Patch(const std::string& winreDir, int diskNumber, WipeStrategy strategy)
     {
         // ── Step 1: Resolve winre.wim ─────────────────────────────────────────────
-        cout << "  " << CYAN << "[1/6]" << RESET
+        std::cout << "  " << CLIUtils::Colors::CYAN << "[1/6]" << CLIUtils::Colors::RESET
              << " Resolving winre.wim...\n";
-        const string wimPath = WIMResolver::ResolveWimPath(winreDir);
+        const std::string wimPath = WIMResolver::ResolveWimPath(winreDir);
 
         if (wimPath.empty())
         {
-            cerr << "  " << BRED << "[ERROR]" << RESET << " winre.wim not found.\n";
+            std::cerr << "  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET << " winre.wim not found.\n";
             return false;
         }
 
@@ -62,73 +59,73 @@ namespace WinREPatcher
         // The original winre.wim lives on a recovery partition accessed via a
         // \\?\GLOBALROOT\device\... path that is not directly writable. Writing
         // the backup to %TEMP% avoids that restriction entirely.
-        const string bakPath = BuildBackupPath();
+        const std::string bakPath = BuildBackupPath();
 
         if (!CopyFileA(wimPath.c_str(), bakPath.c_str(), /*bFailIfExists=*/FALSE))
         {
-            cerr << "  " << BRED << "[ERROR]" << RESET
+            std::cerr << "  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET
                  << " Could not create winre.wim backup (code "
                  << GetLastError() << "). Aborting for safety.\n";
             return false;
         }
 
-        cout << "  Source       : " << wimPath  << "\n";
-        cout << "  Backup       : " << bakPath  << "\n";
-        cout << "  Wipe target  : Disk " << diskNumber << " (FULL DISK)\n";
-        cout << "  Strategy     : ";
+        std::cout << "  Source       : " << wimPath  << "\n";
+        std::cout << "  Backup       : " << bakPath  << "\n";
+        std::cout << "  Wipe target  : Disk " << diskNumber << " (FULL DISK)\n";
+        std::cout << "  Strategy     : ";
         switch (strategy)
         {
-            case WipeStrategy::ZeroFill:           cout << "Zero Fill (diskpart clean all)"; break;
-            case WipeStrategy::RandomFill:         cout << "Random Fill (format /P:1)";      break;
-            case WipeStrategy::QuickFormatAndTrim: cout << "Quick Format + explicit TRIM";   break;
+            case WipeStrategy::ZeroFill:           std::cout << "Zero Fill (diskpart clean all)"; break;
+            case WipeStrategy::RandomFill:         std::cout << "Random Fill (format /P:1)";      break;
+            case WipeStrategy::QuickFormatAndTrim: std::cout << "Quick Format + explicit TRIM";   break;
         }
-        cout << "\n\n";
+        std::cout << "\n\n";
 
         // ── Step 2: Create mount directory ────────────────────────────────────
-        cout << "  " << CYAN << "[2/6]" << RESET << " Creating mount directory...\n";
-        const string mountDir = DISMUtils::BuildMountDir();
-        cout << "  Mount dir    : " << mountDir << "\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "[2/6]" << CLIUtils::Colors::RESET << " Creating mount directory...\n";
+        const std::string mountDir = DISMUtils::BuildMountDir();
+        std::cout << "  Mount dir    : " << mountDir << "\n";
 
         if (!CreateDirectoryA(mountDir.c_str(), nullptr))
         {
-            cerr << "  " << BRED << "[ERROR]" << RESET
+            std::cerr << "  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET
                  << " CreateDirectory failed (code " << GetLastError() << ")\n";
             return false;
         }
 
         // ── Step 3: Mount via DISM ──────────────────────────────────────────
-        cout << "\n  " << CYAN << "[3/6]" << RESET
+        std::cout << "\n  " << CLIUtils::Colors::CYAN << "[3/6]" << CLIUtils::Colors::RESET
              << " Mounting WinRE image via DISM (may take up to 60 s)...\n\n";
 
         if (!DISMUtils::MountImage(wimPath, mountDir))
         {
             return false;
         }
-        cout << "\n  Image mounted.\n\n";
+        std::cout << "\n  Image mounted.\n\n";
 
         // ── Step 4: Embed scripts ─────────────────────────────────────────────────
-        cout << "  " << CYAN << "[4/6]" << RESET << " Embedding disk wipe scripts...\n\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "[4/6]" << CLIUtils::Colors::RESET << " Embedding disk wipe scripts...\n\n";
 
         if (!WinREScriptGenerator::GenerateDiskWipeScripts(mountDir, diskNumber, strategy))
         {
-            cerr << "  " << BRED << "[ERROR]" << RESET
+            std::cerr << "  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET
                  << " Failed to write scripts. Discarding mount.\n";
             DISMUtils::DiscardMount(mountDir);
             return false;
         }
 
         // ── Step 5: Patch winpeshl.ini ─────────────────────────────────────────
-        cout << "  " << CYAN << "[5/6]" << RESET << " Patching winpeshl.ini...\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "[5/6]" << CLIUtils::Colors::RESET << " Patching winpeshl.ini...\n";
         if (!WinREScriptGenerator::PatchWinpeshl(mountDir))
         {
-            cerr << "  " << BRED << "[ERROR]" << RESET
+            std::cerr << "  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET
                  << " winpeshl.ini patch failed. Discarding mount.\n";
             DISMUtils::DiscardMount(mountDir);
             return false;
         }
 
         // ── Step 6: Commit and unmount ───────────────────────────────────────────
-        cout << "\n  " << CYAN << "[6/6]" << RESET
+        std::cout << "\n  " << CLIUtils::Colors::CYAN << "[6/6]" << CLIUtils::Colors::RESET
              << " Committing and unmounting (may take up to 60 s)...\n\n";
 
         if (!DISMUtils::CommitAndUnmount(mountDir))
@@ -136,7 +133,7 @@ namespace WinREPatcher
             return false;
         }
 
-        cout << "\n  " << BGREEN << "winre.wim patched and committed." << RESET << "\n\n";
+        std::cout << "\n  " << CLIUtils::Colors::BGREEN << "winre.wim patched and committed." << CLIUtils::Colors::RESET << "\n\n";
 
         // The backup in %TEMP% stays until:
         //   - Rollback() restores and deletes it (user cancelled countdown), or
@@ -144,25 +141,25 @@ namespace WinREPatcher
         return true;
     }
 
-    bool Rollback(const string& wimPath)
+    bool Rollback(const std::string& wimPath)
     {
         // Derive the same %TEMP% backup path that Patch() created.
-        const string bakPath = BuildBackupPath();
+        const std::string bakPath = BuildBackupPath();
 
         if (GetFileAttributesA(bakPath.c_str()) == INVALID_FILE_ATTRIBUTES)
         {
-            cerr << "  " << YELLOW << "[ROLLBACK]" << RESET
+            std::cerr << "  " << CLIUtils::Colors::YELLOW << "[ROLLBACK]" << CLIUtils::Colors::RESET
                  << " Backup not found: " << bakPath << "\n";
             return false;
         }
 
-        cout << "  " << YELLOW << "[ROLLBACK]" << RESET
+        std::cout << "  " << CLIUtils::Colors::YELLOW << "[ROLLBACK]" << CLIUtils::Colors::RESET
              << " Restoring original winre.wim from backup...\n";
 
         // Overwrite the patched .wim with the original backup.
         if (!CopyFileA(bakPath.c_str(), wimPath.c_str(), /*bFailIfExists=*/FALSE))
         {
-            cerr << "  " << BRED << "[ERROR]" << RESET
+            std::cerr << "  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET
                  << " Rollback CopyFile failed (code " << GetLastError() << ").\n"
                  << "           Backup : " << bakPath << "\n"
                  << "           Target : " << wimPath << "\n"
@@ -171,7 +168,7 @@ namespace WinREPatcher
         }
 
         DeleteFileA(bakPath.c_str());
-        cout << "  " << BGREEN << "[ROLLBACK]" << RESET
+        std::cout << "  " << CLIUtils::Colors::BGREEN << "[ROLLBACK]" << CLIUtils::Colors::RESET
              << " winre.wim restored successfully. Backup deleted.\n\n";
         return true;
     }
