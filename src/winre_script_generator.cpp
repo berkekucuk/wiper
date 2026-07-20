@@ -5,13 +5,84 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
-namespace WinREScriptGenerator
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+namespace
 {
     // Path prefix for files embedded inside the mounted WinRE image.
     // At boot time WinRE maps its System32 as X:\Windows\System32.
-    static constexpr const char* kWinRESys32 = "X:\\Windows\\System32\\";
+    constexpr const char* kWinRESys32 = "X:\\Windows\\System32\\";
 
+    bool WriteFile(const std::string& path, const std::string& content)
+    {
+        std::ofstream s(path, std::ios::trunc);
+        if (!s.is_open()) return false;
+        s << content;
+        return true;
+    }
+
+    std::string GetPrepScript(int diskNumber)
+    {
+        return "select disk " + std::to_string(diskNumber) + "\r\n"
+               "clean\r\n"
+               "create partition primary\r\n"
+               "assign letter=Z\r\n"
+               "exit\r\n";
+    }
+
+    std::string GetCleanupScript(int diskNumber)
+    {
+        return "select disk " + std::to_string(diskNumber) + "\r\n"
+               "clean\r\n"
+               "exit\r\n";
+    }
+
+    struct WipeStep
+    {
+        std::string description;
+        std::string commands;
+    };
+
+    bool BuildAndWriteLaunchCmd(const std::string& path,
+                                int diskNumber,
+                                const std::string& title,
+                                const std::string& warning,
+                                const std::vector<WipeStep>& steps)
+    {
+        std::ostringstream s;
+        s << "@echo off\r\n"
+          << "echo.\r\n"
+          << "echo  ====================================================\r\n"
+          << "echo   WinRE Full Disk Wipe (" << title << ") ^| Disk " << diskNumber << "\r\n"
+          << "echo   " << warning << "\r\n"
+          << "echo  ====================================================\r\n"
+          << "echo.\r\n";
+
+        int totalSteps = static_cast<int>(steps.size());
+        
+        for (size_t i = 0; i < steps.size(); ++i)
+        {
+            s << "echo  [" << (i + 1) << "/" << totalSteps << "] " << steps[i].description << "\r\n"
+              << steps[i].commands
+              << "echo.\r\n";
+        }
+
+        s << "echo  Wipe complete. Shutting down in 5 seconds...\r\n"
+          << "ping 127.0.0.1 -n 6 > nul\r\n"
+          << "wpeutil shutdown\r\n";
+
+        return WriteFile(path, s.str());
+    }
+} // namespace
+
+// ---------------------------------------------------------------------------
+// WinREScriptGenerator interface implementation
+// ---------------------------------------------------------------------------
+namespace WinREScriptGenerator
+{
     bool GenerateDiskWipeScripts(const std::string& mountDir, int diskNumber, WinREPatcher::WipeStrategy strategy)
     {
         // Validate disk number range before writing any scripts.
@@ -22,134 +93,68 @@ namespace WinREScriptGenerator
                       << ". Must be in range 0-127.\n";
             return false;
         }
+
+        const std::string sys32 = mountDir + "\\Windows\\System32\\";
+        const std::string launchCmdPath = sys32 + "wipe_launch.cmd";
+
         switch (strategy)
         {
         case WinREPatcher::WipeStrategy::ZeroFill:
             {
-                std::string p = mountDir + "\\Windows\\System32\\dp_zerofill.txt";
-                std::ofstream s(p, std::ios::trunc);
-                if (!s.is_open()) return false;
-                s << "select disk " << diskNumber << "\r\n";
-                s << "clean all\r\n";
-                s << "exit\r\n";
+                std::string dpScript = "select disk " + std::to_string(diskNumber) + "\r\nclean all\r\nexit\r\n";
+                if (!WriteFile(sys32 + "dp_zerofill.txt", dpScript)) return false;
+
+                std::vector<WipeStep> steps = {
+                    { "Running diskpart clean all...\r\necho  This may take 30-60 minutes for large drives.",
+                      "diskpart /s " + std::string(kWinRESys32) + "dp_zerofill.txt\r\n" }
+                };
+
+                return BuildAndWriteLaunchCmd(launchCmdPath, diskNumber, 
+                                              "HDD Zero Fill", 
+                                              "ALL DATA will be permanently erased!", 
+                                              steps);
             }
-            {
-                std::string p = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
-                std::ofstream s(p, std::ios::trunc);
-                if (!s.is_open()) return false;
-                s << "@echo off\r\n";
-                s << "echo.\r\n";
-                s << "echo  ====================================================\r\n";
-                s << "echo   WinRE Full Disk Wipe (HDD Zero Fill) ^| Disk " << diskNumber << "\r\n";
-                s << "echo   ALL DATA will be permanently erased!\r\n";
-                s << "echo  ====================================================\r\n";
-                s << "echo.\r\n";
-                s << "echo  [1/2] Running diskpart clean all...\r\n";
-                s << "echo  This may take 30-60 minutes for large drives.\r\n";
-                s << "echo.\r\n";
-                s << "diskpart /s " << kWinRESys32 << "dp_zerofill.txt\r\n";
-                s << "echo.\r\n";
-                s << "echo  [2/2] Disk wiped. Shutting down in 5 seconds...\r\n";
-                s << "ping 127.0.0.1 -n 6 > nul\r\n";
-                s << "wpeutil shutdown\r\n";
-            }
-            break;
 
         case WinREPatcher::WipeStrategy::RandomFill:
             {
-                {
-                    std::string p = mountDir + "\\Windows\\System32\\dp_randomfill_prep.txt";
-                    std::ofstream s(p, std::ios::trunc);
-                    if (!s.is_open()) return false;
-                    s << "select disk " << diskNumber << "\r\n";
-                    s << "clean\r\n";
-                    s << "create partition primary\r\n";
-                    s << "assign letter=Z\r\n";
-                    s << "exit\r\n";
-                }
-                {
-                    std::string p = mountDir + "\\Windows\\System32\\dp_randomfill_cleanup.txt";
-                    std::ofstream s(p, std::ios::trunc);
-                    if (!s.is_open()) return false;
-                    s << "select disk " << diskNumber << "\r\n";
-                    s << "clean\r\n";
-                    s << "exit\r\n";
-                }
-                {
-                    std::string p = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
-                    std::ofstream s(p, std::ios::trunc);
-                    if (!s.is_open()) return false;
-                    s << "@echo off\r\n";
-                    s << "echo.\r\n";
-                    s << "echo  ====================================================\r\n";
-                    s << "echo   WinRE Full Disk Wipe (HDD Random Fill) ^| Disk " << diskNumber << "\r\n";
-                    s << "echo   ALL DATA will be overwritten with random bits!\r\n";
-                    s << "echo  ====================================================\r\n";
-                    s << "echo.\r\n";
-                    s << "echo  [1/3] Preparing Disk (removing partitions ^& assigning Z:)...\r\n";
-                    s << "diskpart /s " << kWinRESys32 << "dp_randomfill_prep.txt\r\n";
-                    s << "echo.\r\n";
-                    s << "echo  [2/3] Formatting with random data (/P:1)...\r\n";
-                    s << "echo  This may take SEVERAL HOURS for large drives.\r\n";
-                    s << "format Z: /FS:NTFS /P:1 /Y\r\n";
-                    s << "echo.\r\n";
-                    s << "echo  [3/3] Final cleanup (returning disk to RAW state)...\r\n";
-                    s << "diskpart /s " << kWinRESys32 << "dp_randomfill_cleanup.txt\r\n";
-                    s << "echo.\r\n";
-                    s << "echo  Wipe complete. Shutting down in 5 seconds...\r\n";
-                    s << "ping 127.0.0.1 -n 6 > nul\r\n";
-                    s << "wpeutil shutdown\r\n";
-                }
+                if (!WriteFile(sys32 + "dp_randomfill_prep.txt", GetPrepScript(diskNumber))) return false;
+                if (!WriteFile(sys32 + "dp_randomfill_cleanup.txt", GetCleanupScript(diskNumber))) return false;
+
+                std::vector<WipeStep> steps = {
+                    { "Preparing Disk (removing partitions ^& assigning Z:)...",
+                      "diskpart /s " + std::string(kWinRESys32) + "dp_randomfill_prep.txt\r\n" },
+                    { "Formatting with random data (/P:1)...\r\necho  This may take SEVERAL HOURS for large drives.",
+                      "format Z: /FS:NTFS /P:1 /Y\r\n" },
+                    { "Final cleanup (returning disk to RAW state)...",
+                      "diskpart /s " + std::string(kWinRESys32) + "dp_randomfill_cleanup.txt\r\n" }
+                };
+
+                return BuildAndWriteLaunchCmd(launchCmdPath, diskNumber, 
+                                              "HDD Random Fill", 
+                                              "ALL DATA will be overwritten with random bits!", 
+                                              steps);
             }
-            break;
 
         case WinREPatcher::WipeStrategy::QuickFormatAndTrim:
             {
-                {
-                    std::string p = mountDir + "\\Windows\\System32\\dp_ssd_prep.txt";
-                    std::ofstream s(p, std::ios::trunc);
-                    if (!s.is_open()) return false;
-                    s << "select disk " << diskNumber << "\r\n";
-                    s << "clean\r\n";
-                    s << "create partition primary\r\n";
-                    s << "assign letter=Z\r\n";
-                    s << "exit\r\n";
-                }
-                {
-                    std::string p = mountDir + "\\Windows\\System32\\dp_ssd_cleanup.txt";
-                    std::ofstream s(p, std::ios::trunc);
-                    if (!s.is_open()) return false;
-                    s << "select disk " << diskNumber << "\r\n";
-                    s << "clean\r\n";
-                    s << "exit\r\n";
-                }
-                {
-                    std::string p = mountDir + "\\Windows\\System32\\wipe_launch.cmd";
-                    std::ofstream s(p, std::ios::trunc);
-                    if (!s.is_open()) return false;
-                    s << "@echo off\r\n";
-                    s << "echo.\r\n";
-                    s << "echo  ====================================================\r\n";
-                    s << "echo   WinRE Full Disk Wipe (SSD) ^| Disk " << diskNumber << "\r\n";
-                    s << "echo   ALL DATA will be permanently erased via TRIM!\r\n";
-                    s << "echo  ====================================================\r\n";
-                    s << "echo.\r\n";
-                    s << "echo  [1/3] Preparing SSD (removing partitions ^& assigning Z:)...\r\n";
-                    s << "diskpart /s " << kWinRESys32 << "dp_ssd_prep.txt\r\n";
-                    s << "echo.\r\n";
-                    s << "echo  [2/3] Quick format + Explicit TRIM (wipes NAND cells)...\r\n";
-                    s << "format Z: /FS:NTFS /Q /Y\r\n";
-                    s << "defrag Z: /L\r\n";
-                    s << "echo.\r\n";
-                    s << "echo  [3/3] Final cleanup (returning disk to RAW state)...\r\n";
-                    s << "diskpart /s " << kWinRESys32 << "dp_ssd_cleanup.txt\r\n";
-                    s << "echo.\r\n";
-                    s << "echo  Wipe complete. Shutting down in 5 seconds...\r\n";
-                    s << "ping 127.0.0.1 -n 6 > nul\r\n";
-                    s << "wpeutil shutdown\r\n";
-                }
+                if (!WriteFile(sys32 + "dp_ssd_prep.txt", GetPrepScript(diskNumber))) return false;
+                if (!WriteFile(sys32 + "dp_ssd_cleanup.txt", GetCleanupScript(diskNumber))) return false;
+
+                std::vector<WipeStep> steps = {
+                    { "Preparing SSD (removing partitions ^& assigning Z:)...",
+                      "diskpart /s " + std::string(kWinRESys32) + "dp_ssd_prep.txt\r\n" },
+                    { "Quick format + Explicit TRIM (wipes NAND cells)...",
+                      "format Z: /FS:NTFS /Q /Y\r\n"
+                      "defrag Z: /L\r\n" },
+                    { "Final cleanup (returning disk to RAW state)...",
+                      "diskpart /s " + std::string(kWinRESys32) + "dp_ssd_cleanup.txt\r\n" }
+                };
+
+                return BuildAndWriteLaunchCmd(launchCmdPath, diskNumber, 
+                                              "SSD", 
+                                              "ALL DATA will be permanently erased via TRIM!", 
+                                              steps);
             }
-            break;
         }
 
         return true;

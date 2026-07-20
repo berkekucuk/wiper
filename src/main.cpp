@@ -22,7 +22,7 @@ int main()
     CLIUtils::EnableColors();
     CLIUtils::PrintBanner(kWipeDiskNumber, kHddStrategy, kSsdStrategy);
 
-    // ---- 1. Locate WinRE ----
+    // ── Step 1: Locate WinRE ─────────────────────────────────────────────────
     std::cout << CLIUtils::Colors::BCYAN << "  [1/5] " << CLIUtils::Colors::RESET << "Locating WinRE...\n\n";
 
     std::string winrePath;
@@ -41,7 +41,7 @@ int main()
 
     WinREFinder::PrintInfo(winrePath, winreStatus);
 
-    // ---- 2. Detect disk type ----
+    // ── Step 2: Detect disk type ─────────────────────────────────────────────
     std::cout << CLIUtils::Colors::BCYAN << "  [2/5] " << CLIUtils::Colors::RESET
          << "Detecting disk type for Disk " << kWipeDiskNumber << "...\n\n";
 
@@ -57,7 +57,7 @@ int main()
 
     std::cout << "  Strategy     : " << CLIUtils::StrategyToString(activeStrategy) << "\n\n";
 
-    // ---- 3. Patch winre.wim ----
+    // ── Step 3: Patch winre.wim ──────────────────────────────────────────────
     std::cout << CLIUtils::Colors::BCYAN << "  [3/5] " << CLIUtils::Colors::RESET << "Patching WinRE image...\n\n";
 
     if (!WinREPatcher::Patch(winrePath, kWipeDiskNumber, activeStrategy))
@@ -69,7 +69,7 @@ int main()
         return EXIT_FAILURE;
     }
 
-    // ---- 4. Countdown ----
+    // ── Step 4: Countdown ────────────────────────────────────────────────────
     std::cout << CLIUtils::Colors::BCYAN << "  [4/5] " << CLIUtils::Colors::RESET << "Starting countdown...\n\n";
 
     if (!Countdown::Run(10))
@@ -95,7 +95,7 @@ int main()
         return EXIT_SUCCESS;
     }
 
-    // ---- 5. Reboot into WinRE ----
+    // ── Step 5: Reboot into WinRE ────────────────────────────────────────────
     std::cout << CLIUtils::Colors::BCYAN << "  [5/5] " << CLIUtils::Colors::RESET << "Initiating WinRE reboot...\n\n";
 
     if (!Reboot::BootIntoWinRE())

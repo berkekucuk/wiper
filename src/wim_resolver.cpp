@@ -3,6 +3,9 @@
 
 #include <iostream>
 
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 namespace
 {
     /** @brief Scans A-Z for <drive>:\Recovery\WindowsRE\winre.wim.
@@ -29,6 +32,9 @@ namespace
     }
 }
 
+// ---------------------------------------------------------------------------
+// WIMResolver interface implementation
+// ---------------------------------------------------------------------------
 namespace WIMResolver
 {
     std::string ResolveWimPath(const std::string& winreDir)
