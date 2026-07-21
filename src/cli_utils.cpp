@@ -22,7 +22,7 @@ namespace CLIUtils
     {
         if (s == WinREPatcher::WipeStrategy::ZeroFill)          return "Zero Fill (clean all)";
         if (s == WinREPatcher::WipeStrategy::RandomFill)        return "Random Fill (format /P:1)";
-        return "Quick Format + TRIM";
+        return "Quick Format";
     }
 
     void PrintBanner(int wipeDiskNumber,

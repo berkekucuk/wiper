@@ -15,7 +15,7 @@ constexpr int kWipeDiskNumber = 0;
 
 // Configurable wipe strategies for each disk type
 constexpr WinREPatcher::WipeStrategy kHddStrategy = WinREPatcher::WipeStrategy::ZeroFill;
-constexpr WinREPatcher::WipeStrategy kSsdStrategy = WinREPatcher::WipeStrategy::QuickFormatAndTrim;
+constexpr WinREPatcher::WipeStrategy kSsdStrategy = WinREPatcher::WipeStrategy::QuickFormat;
 
 int main()
 {

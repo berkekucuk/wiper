@@ -77,7 +77,7 @@ namespace WinREPatcher
         {
             case WipeStrategy::ZeroFill:           std::cout << "Zero Fill (diskpart clean all)"; break;
             case WipeStrategy::RandomFill:         std::cout << "Random Fill (format /P:1)";      break;
-            case WipeStrategy::QuickFormatAndTrim: std::cout << "Quick Format + explicit TRIM";   break;
+            case WipeStrategy::QuickFormat:        std::cout << "Quick Format";                   break;
         }
         std::cout << "\n\n";
 

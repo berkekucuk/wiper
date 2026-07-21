@@ -11,7 +11,7 @@ namespace WinREPatcher
     {
         ZeroFill,           ///< Uses 'diskpart clean all' (1-pass zero fill) on every sector
         RandomFill,         ///< Creates partition, uses 'format /P:1' (zero + random data), then cleans
-        QuickFormatAndTrim  ///< Uses quick format + explicit TRIM to instantly erase cells
+        QuickFormat         ///< Recreates a partition, quick-formats it, then removes it
     };
 
     /**
@@ -20,7 +20,7 @@ namespace WinREPatcher
      *
      * @param winreDir    Path to the directory containing winre.wim.
      * @param diskNumber  Physical disk number to wipe (0-based).
-     * @param strategy    The selected wipe strategy (ZeroFill or QuickFormatAndTrim).
+     * @param strategy    The selected wipe strategy.
      * @return true  Successfully patched.
      * @return false Failed to patch.
      */
