@@ -76,23 +76,18 @@ int main()
     {
         std::cout << "  Operation cancelled. Restoring original winre.wim...\n\n";
 
-        // Resolve the exact .wim path so Rollback() can find the temp backup.
         const std::string wimPath = WIMResolver::ResolveWimPath(winrePath);
-        if (!wimPath.empty())
-        {
-            WinREPatcher::Rollback(wimPath);
-        }
-        else
+        const bool restored = !wimPath.empty() && WinREPatcher::Rollback(wimPath);
+        if (!restored)
         {
             std::cerr << CLIUtils::Colors::YELLOW << "  [WARN] " << CLIUtils::Colors::RESET
-                 << "Could not resolve winre.wim path for rollback.\n"
-                 << "         Backup file may remain in %TEMP%.\n";
+                      << "Could not restore winre.wim. Backup file may remain in %TEMP%.\n";
         }
 
         std::cout << "  System will not be restarted.\n\n"
              << "  Press any key to exit...\n";
         std::cin.get();
-        return EXIT_SUCCESS;
+        return restored ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     // ── Step 5: Reboot into WinRE ────────────────────────────────────────────
@@ -101,7 +96,15 @@ int main()
     if (!Reboot::BootIntoWinRE())
     {
         std::cerr << "\n" << CLIUtils::Colors::BRED << "  [ERROR] " << CLIUtils::Colors::RESET
-             << "Reboot could not be initiated.\n\n";
+             << "Reboot could not be initiated. Restoring original winre.wim...\n\n";
+
+        const std::string wimPath = WIMResolver::ResolveWimPath(winrePath);
+        if (wimPath.empty() || !WinREPatcher::Rollback(wimPath))
+        {
+            std::cerr << CLIUtils::Colors::BRED << "  [ERROR] " << CLIUtils::Colors::RESET
+                      << "Rollback failed. Do not restart until WinRE has been restored.\n\n";
+        }
+
         std::cout << "  Press any key to exit...\n";
         std::cin.get();
         return EXIT_FAILURE;
