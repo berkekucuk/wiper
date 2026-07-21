@@ -9,11 +9,12 @@ namespace WinREFinder
 {
     /**
      * @brief Resolves the WinRE installation path.
-     *        First attempts to parse the output of `reagentc /info`;
+     *        First detects the locale-independent WinRE device path in the
+     *        output of `reagentc /info`;
      *        falls back to reading the Registry if that fails.
      *
      * @param outPath   Receives the resolved WinRE path on success.
-     * @param outStatus Receives the WinRE status string ("Enabled" / "Disabled").
+     * @param outStatus Receives "Detected" when the WinRE device path is found.
      * @return true  Path was resolved successfully.
      * @return false Path could not be determined.
      */

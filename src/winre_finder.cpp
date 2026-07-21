@@ -79,20 +79,19 @@ namespace
     }
 
     /**
-     * @brief Parses `reagentc /info` output to extract the WinRE path and status.
+     * @brief Parses `reagentc /info` output to extract the WinRE device path.
      *
      * @param output    Raw output from reagentc.
      * @param outPath   Receives the extracted path.
      * @param outStatus Receives the extracted status.
-     * @return true  Parsing succeeded.
-     * @return false Relevant lines were not found in the output.
+     * @return true  A WinRE device path was found.
+     * @return false No WinRE device path was found in the output.
      */
     bool ParseReagentcOutput(const std::string& output,
                              std::string&       outPath,
                              std::string&       outStatus)
     {
-        bool foundPath   = false;
-        bool foundStatus = false;
+        constexpr const char* kWinREDevicePrefix = "\\\\?\\GLOBALROOT\\device\\";
 
         std::istringstream stream(output);
         std::string        line;
@@ -108,30 +107,17 @@ namespace
 
             std::string trimmed = trim(line);
 
-            // "Windows RE location:" line
-            if (!foundPath && trimmed.find("Windows RE location:") != std::string::npos)
+            // The GLOBALROOT device path is not localized, unlike reagentc labels.
+            const size_t pathStart = trimmed.find(kWinREDevicePrefix);
+            if (pathStart != std::string::npos)
             {
-                size_t colon = trimmed.find(':');
-                if (colon != std::string::npos)
-                {
-                    outPath   = trim(trimmed.substr(colon + 1));
-                    foundPath = !outPath.empty();
-                }
-            }
-
-            // "Windows RE status:" line
-            if (!foundStatus && trimmed.find("Windows RE status:") != std::string::npos)
-            {
-                size_t colon = trimmed.find(':');
-                if (colon != std::string::npos)
-                {
-                    outStatus   = trim(trimmed.substr(colon + 1));
-                    foundStatus = !outStatus.empty();
-                }
+                outPath = trimmed.substr(pathStart);
+                outStatus = "Detected";
+                return true;
             }
         }
 
-        return foundPath;
+        return false;
     }
 } // anonymous namespace
 
