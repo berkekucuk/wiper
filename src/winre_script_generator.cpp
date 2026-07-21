@@ -134,11 +134,28 @@ namespace WinREScriptGenerator
 
         out << "[LaunchApps]\r\n";
         out << "X:\\Windows\\System32\\cmd.exe, /c X:\\Windows\\System32\\wipe_launch.cmd\r\n";
+        out.close();
+
+        if (!out)
+        {
+            std::cerr << "  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET
+                      << " Failed to write winpeshl.ini.\n";
+            return false;
+        }
+
+        std::string updated;
+        {
+            std::ifstream in(iniPath);
+            if (in.is_open())
+            {
+                std::ostringstream oss;
+                oss << in.rdbuf();
+                updated = oss.str();
+            }
+        }
 
         std::cout << "  " << CLIUtils::Colors::YELLOW << "--- winpeshl.ini (after) ---" << CLIUtils::Colors::RESET << "\n"
-                  << "  [LaunchApps]\n"
-                  << "  X:\\Windows\\System32\\cmd.exe, "
-                     "/c X:\\Windows\\System32\\wipe_launch.cmd\n\n";
+                  << (updated.empty() ? "  (empty)\n" : updated) << "\n";
         return true;
     }
 }
