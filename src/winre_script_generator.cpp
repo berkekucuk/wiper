@@ -33,7 +33,7 @@ namespace
             commands =
                 "echo  [1/1] Running diskpart clean all...\r\n"
                 "echo  This may take 30-60 minutes for large drives.\r\n"
-                "(echo select disk " + std::to_string(diskNumber) + "& echo clean all& echo exit) | diskpart\r\n"
+                "(echo select disk " + std::to_string(diskNumber) + "& echo clean all& echo exit) | diskpart > nul\r\n"
                 "echo.\r\n";
             break;
 
@@ -42,14 +42,14 @@ namespace
             warning = "ALL DATA will be overwritten with random bits!";
             commands =
                 "echo  [1/3] Preparing Disk (removing partitions ^& assigning Z:)...\r\n"
-                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo create partition primary& echo assign letter=Z& echo exit) | diskpart\r\n"
+                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo create partition primary& echo assign letter=Z& echo exit) | diskpart > nul\r\n"
                 "echo.\r\n"
                 "echo  [2/3] Formatting with random data (/P:1)...\r\n"
                 "echo  This may take SEVERAL HOURS for large drives.\r\n"
                 "format Z: /FS:NTFS /P:1 /Y\r\n"
                 "echo.\r\n"
                 "echo  [3/3] Final cleanup (returning disk to RAW state)...\r\n"
-                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo exit) | diskpart\r\n"
+                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo exit) | diskpart > nul\r\n"
                 "echo.\r\n";
             break;
 
@@ -58,13 +58,13 @@ namespace
             warning = "Partition metadata will be removed!";
             commands =
                 "echo  [1/3] Preparing SSD (removing partitions ^& assigning Z:)...\r\n"
-                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo create partition primary& echo assign letter=Z& echo exit) | diskpart\r\n"
+                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo create partition primary& echo assign letter=Z& echo exit) | diskpart > nul\r\n"
                 "echo.\r\n"
                 "echo  [2/3] Quick formatting...\r\n"
                 "format Z: /FS:NTFS /Q /Y\r\n"
                 "echo.\r\n"
                 "echo  [3/3] Final cleanup (returning disk to RAW state)...\r\n"
-                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo exit) | diskpart\r\n"
+                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo exit) | diskpart > nul\r\n"
                 "echo.\r\n";
             break;
         }
@@ -78,9 +78,7 @@ namespace
            << "echo  ====================================================\r\n"
            << "echo.\r\n"
            << commands
-           << "echo  Wipe complete. Shutting down in 5 seconds...\r\n"
-           << "ping 127.0.0.1 -n 6 > nul\r\n"
-           << "wpeutil shutdown\r\n";
+           << "echo  Wipe complete. The command window will remain open.\r\n";
 
         return s.str();
     }

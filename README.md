@@ -137,15 +137,13 @@ HDDs (Mekanik Diskler) ve SSDs (Katı Hal Sürücüleri) veriyi tamamen farklı 
 (Neden eski DoD standartları gibi rastgele veri yazılmadı? Günümüz yüksek yoğunluklu HDD'lerinde tek geçiş sıfır yazmak veriyi donanımsal olarak (mikroskopla bile) kurtarılamaz hale getirdiği için güncel NIST standartlarında yeterli kabul edilir.)
 
 **HDD İçin Alternatif Yöntem: Dinamik Bölümleme ve Rastgele Veri Formatı (`RandomFill`)**
-Eğer sıfır yerine mutlaka rastgele veri yazılmak istenirse bu mod kullanılabilir. Mimari şu şekildedir:
+Eğer sıfır yerine mutlaka rastgele veri yazılmak istenirse bu mod kullanılabilir. Ancak bu mimari `clean all` işlemine göre çok daha fazla zaman alır. Yüksek bir güvenlik standardı hedeflenmediği sürece stabil ve hızlı olan `clean all` (ZeroFill) seçeneği varsayılan olarak önerilir. İstenirse `main.cpp` içerisinden `RandomFill` stratejisi seçilerek bu mod aktif edilebilir. Mimari şu şekildedir:
 1. `diskpart` → Diskpart aracı açılır, `select disk N`, `clean`, `create partition primary`, `assign letter=Z` komutları ile disk RAW hale getirilip geçici bir sürücü harfi (Z:) atanır; ardından `exit` ile CMD ortamına dönülür.
 2. `format Z: /FS:NTFS /P:1 /Y`
-- **`format Z:`**: `Z:` sürücü harfine bağlı partition'ı biçimlendirir.
-- **`/P:1`**: Partition içindeki her hücrenin üzerine sırayla önce sıfır (0), ardından rastgele bitler yazarak veriyi manyetik olarak yok eder.
-- **`/Y`**: Format sırasında gelen "devam etmek istiyor musunuz?" onay sorusunu kaldırır. Scriptin otomatik çalışması için gereklidir.
+- Disk üzerindeki tüm sektörleri tek tek tarar. (Bad sector var mı diye kontrol eder ve /P:1 parametresi nedeniyle her hücrenin üzerine sırayla önce sıfır (0), ardından rastgele bitler yazarak veriyi manyetik olarak yok eder.) Bu işlem disk boyutuna göre saatler sürebilir.
+- İşlem bitince en son Partition'a NTFS (New Technology File System) yapısını kurar. Dosyaların nerede tutulacağını, izinleri ve dizin ağacını yönetecek olan ana tabloyu (MFT - Master File Table) bu alana yazar.
 3. `diskpart` → Diskpart tekrar açılır, `select disk N`, `clean` komutuyla geçici partition tablosu silinir ve disk tekrar ham (RAW) bırakılır; ardından `exit` ile çıkılır.
 4. `wpeutil shutdown` → Sistem tamamen kapatılır.
-Ancak bu mimari `clean all` işlemine göre çok daha fazla zaman alır. Yüksek bir güvenlik standardı hedeflenmediği sürece stabil ve hızlı olan `clean all` (ZeroFill) seçeneği varsayılan olarak önerilir. İstenirse `main.cpp` içerisinden `RandomFill` stratejisi seçilerek bu mod aktif edilebilir.
 
 **SSD İçin Seçilen Yöntem: Partition Oluştur, Hızlı Formatla ve Temizle.**
 SSD'lerde `clean all` (sıfır yazmak) veya `format /P:1` (rastgele veri yazmak) iki büyük soruna yol açar:
@@ -155,19 +153,10 @@ SSD'lerde `clean all` (sıfır yazmak) veya `format /P:1` (rastgele veri yazmak)
 Bu mod, diski yeniden bölümlendirip hızlı format uygular:
 1. `diskpart` → Diskpart aracı açılır, `select disk N`, `clean`, `create partition primary`, `assign letter=Z` komutları ile disk RAW hale getirilip geçici bir sürücü harfi (Z:) atanır; ardından `exit` ile CMD ortamına dönülür.
 2. `format Z: /FS:NTFS /Q /Y`
-- **`format Z:`**: `Z:` sürücü harfine bağlı partition'ı biçimlendirir.
-- **`/Q`**: Hızlı format anlamına gelir. Dosya tablosunu yeniden kurar, fakat eski verileri fiziksel olarak doğrudan silmez.
-- **`/Y`**: Format sırasında gelen "devam etmek istiyor musunuz?" onay sorusunu kaldırır. Scriptin otomatik çalışması için gereklidir.
+- /Q parametresi nedeniyle sektör taramasını ve veri sıfırlamayı tamamen atlar. (Quick format)
+- Doğrudan diskin en başına gidip sadece NTFS Dosya Tablosunu (MFT) yazar ve işlemi bitirir.
 3. `diskpart` → Diskpart tekrar açılır, `select disk N`, `clean` komutuyla geçici partition tablosu silinir ve disk tekrar ham (RAW) bırakılır; ardından `exit` ile çıkılır.
 4. `wpeutil shutdown` → Sistem tamamen kapatılır.
-
-### Neden `format` Komutlarında Sürekli `/FS:NTFS` Parametresini Kullanıyoruz?
-Dikkat edilirse HDD için alternatif (RandomFill) yöntemde ve SSD yönteminde diski önce `clean` ile temizleyip RAW (ham) hale getirdikten sonra formatlarken hep `/FS:NTFS` parametresi bir silme parametresiyle (`/Q` veya `/P:1`) **birlikte (aynı komutta)** kullanılmıştır.
-Bunun sebebi işletim sisteminin çalışma prensibidir:
-- **`clean` Komutunun Etkisi:** Önceki bölümlerde belirtildiği gibi `clean` sadece diskin en başındaki haritayı (MBR/GPT) siler. Eski MFT ve veriler fiziksel olarak içeride kalsa da işletim sistemi haritasız bir diske doğrudan müdahale edemez.
-- **Yeni Harita ve Format İhtiyacı:** Script içerisinde diski temizledikten hemen sonra yeni bir boş bölüm oluşturulmaktadır (`create partition primary`). Ancak bu yeni bölüm (eski verilerin üzerinde olsa bile) RAW formatındadır, yani içinde işletim sisteminin tanıyacağı yeni bir MFT yoktur. Windows'un `format` aracının çalışabilmesi için önce bir yapı kurulması zorundadır.
-- **SSD'lerde (`/Q` ile birlikte):** İşletim sisteminin diske donanımsal TRIM sinyali (hücreleri boşaltma emri) gönderebilmesi için diskin NTFS gibi modern bir dosya sistemiyle biçimlendirilmesi şarttır. `/FS:NTFS` ile Windows'a hızlıca bir yapı kurdurularak, `/Q` ile bu yapı üzerinden SSD kontrolcüsüne TRIM sinyali gönderilmesi sağlanır.
-- **HDD'lerde (`/P:1` ile birlikte):** Diske rastgele veri yazmak için format aracının önce diski sektörlere/cluster'lara (kümelere) bölmesi gerekir. `/FS:NTFS` ile diski bölümlendirip adreslenebilir hale getirerek, `/P:1` ile de az önce oluşturulan bu tüm veri kümelerinin içi fiziksel olarak rastgele verilerle doldurulur. Dosya sistemi olmadan format aracı nereye veri yazacağını bilemez.
 
 ---
 
