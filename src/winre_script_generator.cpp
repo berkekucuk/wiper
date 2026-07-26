@@ -78,7 +78,7 @@ namespace
            << "echo  ====================================================\r\n"
            << "echo.\r\n"
            << commands
-           << "echo  Wipe complete. The command window will remain open.\r\n";
+           << "echo  Wipe completed.\r\n";
 
         return s.str();
     }
