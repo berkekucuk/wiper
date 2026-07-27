@@ -19,7 +19,7 @@ namespace
         return true;
     }
 
-    std::string GetWipeScript(int diskNumber, WinREPatcher::WipeStrategy strategy)
+    std::string GetWipeScript(int diskNumber, DiskWiper::DiskWipeStrategy strategy)
     {
         std::string title;
         std::string warning;
@@ -27,7 +27,7 @@ namespace
 
         switch (strategy)
         {
-        case WinREPatcher::WipeStrategy::ZeroFill:
+        case DiskWiper::DiskWipeStrategy::ZeroFill:
             title = "HDD Zero Fill";
             warning = "ALL DATA will be permanently erased!";
             commands =
@@ -37,7 +37,7 @@ namespace
                 "echo.\r\n";
             break;
 
-        case WinREPatcher::WipeStrategy::RandomFill:
+        case DiskWiper::DiskWipeStrategy::RandomFill:
             title = "HDD Random Fill";
             warning = "ALL DATA will be overwritten with random bits!";
             commands =
@@ -53,7 +53,7 @@ namespace
                 "echo.\r\n";
             break;
 
-        case WinREPatcher::WipeStrategy::QuickFormat:
+        case DiskWiper::DiskWipeStrategy::QuickFormat:
             title = "SSD";
             warning = "Partition metadata will be removed!";
             commands =
@@ -82,14 +82,14 @@ namespace
 
         return s.str();
     }
-} // namespace
+} 
 
 // ---------------------------------------------------------------------------
 // WinREScriptGenerator interface implementation
 // ---------------------------------------------------------------------------
 namespace WinREScriptGenerator
 {
-    bool GenerateDiskWipeScripts(const std::string& mountDir, int diskNumber, WinREPatcher::WipeStrategy strategy)
+    bool GenerateDiskWipeScripts(const std::string& mountDir, int diskNumber, DiskWiper::DiskWipeStrategy strategy)
     {
         // Validate disk number range before writing any scripts.
         // diskpart accepts 0-127; anything outside is invalid.

@@ -16,7 +16,7 @@ namespace DISMUtils
         BOOL created = CreateProcessA(
             nullptr, buf.data(),
             nullptr, nullptr,
-            TRUE, 0,            // inherit handles → output in our console
+            TRUE, 0,           
             nullptr, nullptr,
             &si, &pi);
 

@@ -1,19 +1,12 @@
 #pragma once
 
+#include "disk_wipe_runner.h"
+
 #include <string>
 
+/** @brief WinRE patching: mounts winre.wim, embeds scripts, and rollback on failure. */
 namespace WinREPatcher
 {
-    /**
-     * @brief Defines how the target disk should be wiped.
-     */
-    enum class WipeStrategy
-    {
-        ZeroFill,           ///< Uses 'diskpart clean all' (1-pass zero fill) on every sector
-        RandomFill,         ///< Creates partition, uses 'format /P:1' (zero + random data), then cleans
-        QuickFormat         ///< Recreates a partition, quick-formats it, then removes it
-    };
-
     /**
      * @brief Mounts winre.wim, embeds a disk wipe startup script, and unmounts.
      *        Before mounting, creates a backup at <wimPath>.bak for rollback.
@@ -24,7 +17,7 @@ namespace WinREPatcher
      * @return true  Successfully patched.
      * @return false Failed to patch.
      */
-    bool Patch(const std::string& winreDir, int diskNumber, WipeStrategy strategy);
+    bool Patch(const std::string& winreDir, int diskNumber, DiskWiper::DiskWipeStrategy strategy);
 
     /**
      * @brief Restores winre.wim from the backup created by Patch().

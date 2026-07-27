@@ -6,6 +6,10 @@ Kullanıcıdan herhangi bir ek giriş beklenmez — her şey programın kendisi 
 
 Bu araç, **işletim sisteminin kurulu olduğu diski dahi** canlı olarak silmek üzere tasarlanmıştır.
 
+İki modda çalışır:
+- **Disk Wipe** — Hedef diski WinRE üzerinden tamamen siler
+- **File Wipe** — Belirtilen dosya/dizin listesini güvenli şekilde siler
+
 ---
 
 ## Neden Böyle Bir Şeye İhtiyaç Var?
@@ -53,10 +57,14 @@ tetiklenebilir. Bu nedenle tek tıkla çalışan bir araç için en uygun seçen
 
 ## Nasıl Çalışır?
 
-`wiper.exe` Windows'ta yönetici (Administrator) olarak çalışır ve
-şu adımları izler:
+`wiper.exe` çalışma modunu `wiper_config.txt`'den okur ve ona göre
+Disk Wipe veya File Wipe modunda çalışır.
 
-### Windows'ta (EXE çalışırken)
+---
+
+### Disk Wipe Modu
+
+Windows'ta yönetici (Administrator) olarak çalışır ve şu adımları izler:
 
 **[1/5] WinRE'yi bul**
 `reagentc /info` komutuyla `winre.wim` dosyasının diskteki tam yolu bulunur.
@@ -86,6 +94,23 @@ bayrağı eklenir. Ardından sistem yeniden başlatılır.
 
 WinRE `winre.wim`'den RAM'e yüklenir. `winpeshl.ini` okunur ve
 Wiper tarafından gömülen script dosyası çalıştırılır.
+
+---
+
+### File Wipe Modu
+
+Hiçbir sistem değişikliği yapmaz, doğrudan Windows içinde çalışır:
+
+**[1/3] Dosya listesini oku**
+`wipe_list.txt` dosyasındaki her satır bir dosya veya dizin yoludur. Boş satırlar ve `#` ile başlayan yorum satırları atlanır.
+
+**[2/3] Dosyaları sil**
+Her dosya/dizin için:
+- **SSD'deyse** → overwrite atlanır, sadece TRIM ile silinir
+- **HDD'deyse** → seçilen stratejiye göre (ZeroFill / RandomFill / DOD3) üzerine yazılır, ardından dosya rasgele isimle taşınarak silinir
+
+**[3/3] Özet**
+Başarıyla silinen dosya sayısı gösterilir. Sistem yeniden başlatılmaz.
 
 ---
 
@@ -137,7 +162,7 @@ HDDs (Mekanik Diskler) ve SSDs (Katı Hal Sürücüleri) veriyi tamamen farklı 
 (Neden eski DoD standartları gibi rastgele veri yazılmadı? Günümüz yüksek yoğunluklu HDD'lerinde tek geçiş sıfır yazmak veriyi donanımsal olarak (mikroskopla bile) kurtarılamaz hale getirdiği için güncel NIST standartlarında yeterli kabul edilir.)
 
 **HDD İçin Alternatif Yöntem: Dinamik Bölümleme ve Rastgele Veri Formatı (`RandomFill`)**
-Eğer sıfır yerine mutlaka rastgele veri yazılmak istenirse bu mod kullanılabilir. Ancak bu mimari `clean all` işlemine göre çok daha fazla zaman alır. Yüksek bir güvenlik standardı hedeflenmediği sürece stabil ve hızlı olan `clean all` (ZeroFill) seçeneği varsayılan olarak önerilir. İstenirse `main.cpp` içerisinden `RandomFill` stratejisi seçilerek bu mod aktif edilebilir. Mimari şu şekildedir:
+Eğer sıfır yerine mutlaka rastgele veri yazılmak istenirse bu mod kullanılabilir. Ancak bu mimari `clean all` işlemine göre çok daha fazla zaman alır. Yüksek bir güvenlik standardı hedeflenmediği sürece stabil ve hızlı olan `clean all` (ZeroFill) seçeneği varsayılan olarak önerilir. İstenirse `wiper_config.txt` içindeki `hdd_strategy=randomfill` ile bu mod aktif edilebilir. Mimari şu şekildedir:
 1. `diskpart` → Diskpart aracı açılır, `select disk N`, `clean`, `create partition primary`, `assign letter=Z` komutları ile disk RAW hale getirilip geçici bir sürücü harfi (Z:) atanır; ardından `exit` ile CMD ortamına dönülür.
 2. `format Z: /FS:NTFS /P:1 /Y`
 - Disk üzerindeki tüm sektörleri tek tek tarar. (Bad sector var mı diye kontrol eder ve /P:1 parametresi nedeniyle her hücrenin üzerine sırayla önce sıfır (0), ardından rastgele bitler yazarak veriyi manyetik olarak yok eder.) Bu işlem disk boyutuna göre saatler sürebilir.
@@ -157,6 +182,28 @@ Bu mod, diski yeniden bölümlendirip hızlı format uygular:
 - Doğrudan diskin en başına gidip sadece NTFS Dosya Tablosunu (MFT) yazar ve işlemi bitirir.
 3. `diskpart` → Diskpart tekrar açılır, `select disk N`, `clean` komutuyla geçici partition tablosu silinir ve disk tekrar ham (RAW) bırakılır; ardından `exit` ile çıkılır.
 4. `wpeutil shutdown` → Sistem tamamen kapatılır.
+
+---
+
+### File Wipe Stratejileri
+
+File wipe modu, Windows içinde çalıştığı için disk seviyesinde komutlara erişemez.
+Bunun yerine doğrudan dosya sistemi API'leri kullanılır.
+
+**ZeroFill (`zerofill`)**
+Dosyanın tüm sektörlerine sıfır (0x00) yazılır, ardından dosya silinir.
+Tek geçiş (1 pass).
+
+**RandomFill (`randomfill`)**
+Dosyanın tüm sektörlerine rastgele veri yazılır, ardından dosya silinir.
+Tek geçiş (1 pass).
+
+**DOD3 (`dod3`)**
+DOD 5220.22-M standardı: önce rastgele veri, sonra ters bitler (~random), sonra tekrar rastgele veri yazılır. Ardından dosya silinir. Üç geçiş (3 pass).
+
+> **SSD notu:** Dosya SSD'deyse üzerine yazma atlanır, yalnızca TRIM komutu gönderilir.
+> SSD'lerde wear-leveling nedeniyle sektör bazında üzerine yazmak güvenilir olmadığından,
+> sadece dosyanın NTFS'teki kaydı silinir ve TRIM ile fiziksel blokların boşaltılması sağlanır.
 
 ---
 
@@ -206,20 +253,36 @@ partition seçimi diskpart ile, silme ise format.exe ile yapıldı.
 
 ## Konfigürasyon
 
-`src/main.cpp` içindeki sabiti düzenle:
+Tüm ayarlar `wiper_config.txt` dosyasından okunur (derleme gerektirmez).
 
-```cpp
-// Hedef disk numarası (diskpart: 'list disk')
-// Disk 0 genellikle işletim sisteminin kurulu olduğu ana disktir.
-constexpr int kWipeDiskNumber = 0;
+Dosya şu sırayla aranır:
+1. **EXE ile aynı dizin** (örn. `build\wiper_config.txt`)
+2. **EXE'nin bir üst dizini** (proje kökü, geliştirme için)
 
-// Disk tiplerine göre silme stratejileri
-// HDD için: ZeroFill (Varsayılan, Hızlı) veya RandomFill (Yavaş, Çok Güvenli)
-constexpr WinREPatcher::WipeStrategy kHddStrategy = WinREPatcher::WipeStrategy::ZeroFill;
+### Yapılandırma Dosyası (wiper_config.txt)
 
-// SSD için: QuickFormat
-constexpr WinREPatcher::WipeStrategy kSsdStrategy = WinREPatcher::WipeStrategy::QuickFormat;
+```ini
+# Çalışma modu: diskwipe | filewipe
+mode=diskwipe
+
+# Disk silme ayarları (mode=diskwipe)
+disk_number=0
+hdd_strategy=zerofill       # zerofill | randomfill | quickformat
+ssd_strategy=quickformat    # zerofill | randomfill | quickformat
+
+# Dosya silme ayarları (mode=filewipe)
+wipe_list=wipe_list.txt
+file_strategy=zerofill       # zerofill | randomfill | dod3
 ```
+
+### Stratejiler
+
+| Strateji | Kullanım Yeri | Açıklama |
+|----------|---------------|----------|
+| `zerofill` | Disk & File | Tüm sektörlere sıfır yazar (HDD `clean all`, file 1 pass) |
+| `randomfill` | Disk & File | Sıfır + rastgele veri yazar (HDD `format /P:1`) |
+| `quickformat` | Disk (SSD) | Sadece partition tablosunu temizler, sektör yazmaz |
+| `dod3` | File | DOD 5220.22-M: rastgele + ters + rastgele (3 pass) |
 
 ### Disk Numarasını Bulmak
 
@@ -272,13 +335,33 @@ cmake --build build
 ## Kullanım
 
 ```sh
-# Yönetici terminalinde:
+# Yönetici terminalinde (çalışma modu wiper_config.txt'den okunur):
 build\wiper.exe
 ```
 
-Program şu adımları izler:
+### Disk Wipe Modu
+
+Program `wiper_config.txt` içinde `mode=diskwipe` varsa şu adımları izler:
 1. WinRE konumunu tespit eder ve ekrana basar
 2. Disk tipini tespit eder (HDD / SSD)
 3. `winre.wim` içine diski güvenle silme scriptlerini gömer
 4. 10 saniyelik geri sayım başlar — herhangi bir tuşa basarak iptal edilebilir
 5. Sistem WinRE üzerinden yeniden başlatılır ve diski silip otomatik kapanır.
+
+### File Wipe Modu
+
+`wiper_config.txt` içinde `mode=filewipe` olarak değiştirip çalıştırın:
+
+```ini
+mode=filewipe
+wipe_list=wipe_list.txt
+file_strategy=zerofill
+```
+
+`wipe_list.txt` örneği:
+
+```txt
+C:\Klasor\SilinecekDosya.txt
+C:\Gizli\*
+D:\EskiProjeler
+```

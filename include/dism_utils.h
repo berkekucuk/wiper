@@ -3,6 +3,7 @@
 #include <string>
 #include <windows.h>
 
+/** @brief DISM (Deployment Imaging Service and Management) wrapper utilities. */
 namespace DISMUtils
 {
     /**

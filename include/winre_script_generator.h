@@ -1,24 +1,15 @@
 #pragma once
 
-#include <string>
-#include "winre_patcher.h"
+#include "disk_wipe_runner.h"
 
+#include <string>
+
+/** @brief Generates and embeds disk-wipe startup scripts into a mounted WinRE image. */
 namespace WinREScriptGenerator
 {
-    /**
-     * @brief Embeds all necessary scripts for a disk wipe into the mounted WinRE image.
-     *
-     * @param mountDir    Path to the mounted WinRE directory.
-     * @param diskNumber  Physical disk number to wipe (0-based).
-     * @param strategy    The selected wipe strategy.
-     * @return true  Successfully generated scripts.
-     * @return false Failed to generate scripts.
-     */
-    bool GenerateDiskWipeScripts(const std::string& mountDir, int diskNumber, WinREPatcher::WipeStrategy strategy);
+    /** @brief Generates disk-wipe scripts and embeds them into the mounted WinRE image. */
+    bool GenerateDiskWipeScripts(const std::string& mountDir, int diskNumber, DiskWiper::DiskWipeStrategy strategy);
 
-    /**
-     * @brief Updates winpeshl.ini inside the mounted WinRE image to launch
-     *        wipe_launch.cmd instead of the standard recovery UI.
-     */
+    /** @brief Patches winpeshl.ini to launch the wipe script at WinRE startup. */
     bool PatchWinpeshl(const std::string& mountDir);
 }

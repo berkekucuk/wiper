@@ -2,6 +2,7 @@
 
 #include <string>
 
+/** @brief Resolves the full path to winre.wim, with fallback drive scanning. */
 namespace WIMResolver
 {
     /**

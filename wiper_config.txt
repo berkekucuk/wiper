@@ -1,0 +1,12 @@
+# Wiper configuration file
+# mode: diskwipe or filewipe
+mode=filewipe
+
+# Disk wipe settings (used when mode=diskwipe)
+disk_number=0
+hdd_strategy=zerofill       # zerofill | randomfill | quickformat
+ssd_strategy=quickformat    # zerofill | randomfill | quickformat
+
+# File wipe settings (used when mode=filewipe)
+wipe_list=wipe_list.txt
+file_strategy=zerofill       # zerofill | randomfill | dod3

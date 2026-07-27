@@ -1,7 +1,9 @@
 #pragma once
 
-#include "winre_patcher.h"
+#include "disk_wipe_runner.h"
+#include "file_wipe_runner.h"
 
+/** @brief Console utilities: ANSI colors, banners, and string formatting. */
 namespace CLIUtils
 {
     // -------------------------------------------------------------------------
@@ -28,11 +30,17 @@ namespace CLIUtils
      */
     void EnableColors();
 
-    /** @brief Returns a human-readable string for a WipeStrategy. */
-    const char* StrategyToString(WinREPatcher::WipeStrategy s);
+    /** @brief Returns a human-readable string for a DiskWipeStrategy. */
+    const char* StrategyToString(DiskWiper::DiskWipeStrategy s);
+
+    /** @brief Returns a human-readable string for a FileWipeStrategy. */
+    const char* FileWipeStrategyToString(FileWiper::FileWipeStrategy s);
 
     /** @brief Prints the initial banner. */
     void PrintBanner(int wipeDiskNumber,
-                     WinREPatcher::WipeStrategy hddStrategy,
-                     WinREPatcher::WipeStrategy ssdStrategy);
+                     DiskWiper::DiskWipeStrategy hddStrategy,
+                     DiskWiper::DiskWipeStrategy ssdStrategy);
+
+    /** @brief Prints the banner for the file-wipe mode. */
+    void PrintFileWipeBanner(FileWiper::FileWipeStrategy strategy);
 }

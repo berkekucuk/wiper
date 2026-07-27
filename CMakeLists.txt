@@ -23,6 +23,9 @@ set(SOURCES
     src/winre_script_generator.cpp
     src/disk_detector.cpp
     src/cli_utils.cpp
+    src/disk_wipe_runner.cpp
+    src/file_wipe_runner.cpp
+    src/config.cpp
 )
 
 # ── Executable ────────────────────────────────────────────────────────────────

@@ -14,7 +14,7 @@ namespace DiskDetector
 
         HANDLE h = CreateFileA(
             path.c_str(),
-            0,                                      // no read/write — metadata only
+            0,                                      
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             nullptr,
             OPEN_EXISTING,

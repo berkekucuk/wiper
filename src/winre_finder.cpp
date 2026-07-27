@@ -119,7 +119,7 @@ namespace
 
         return false;
     }
-} // anonymous namespace
+}
 
 // ---------------------------------------------------------------------------
 // WinREFinder interface implementation
@@ -157,4 +157,4 @@ namespace WinREFinder
         std::cout << "  " << CLIUtils::Colors::CYAN << "+--------------------------------------------------+" << CLIUtils::Colors::RESET << "\n";
         std::cout << "\n";
     }
-} // namespace WinREFinder
+} 

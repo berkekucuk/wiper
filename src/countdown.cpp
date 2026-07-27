@@ -5,7 +5,6 @@
 #include <conio.h>
 #include <iostream>
 
-
 namespace Countdown
 {
     bool Run(int seconds)
@@ -38,4 +37,4 @@ namespace Countdown
              << "                                      \n\n";
         return true;
     }
-} // namespace Countdown
+} 

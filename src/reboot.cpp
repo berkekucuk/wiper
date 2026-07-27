@@ -93,7 +93,7 @@ namespace
 
         return (exitCode == 0);
     }
-} // anonymous namespace
+} 
 
 // ---------------------------------------------------------------------------
 // Reboot interface implementation
@@ -148,4 +148,4 @@ namespace Reboot
 
         return true;
     }
-} // namespace Reboot
+}
