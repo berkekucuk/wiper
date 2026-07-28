@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include <array>
+#include <cctype>
 #include <cstdio>
 #include <iostream>
 #include <sstream>
@@ -13,12 +14,7 @@
 // ---------------------------------------------------------------------------
 namespace
 {
-    /**
-     * @brief Executes a command-line command and returns its stdout as a string.
-     *
-     * @param cmd Command to execute.
-     * @return stdout output of the command, or an empty string on failure.
-     */
+    /** @brief Executes a command and returns its stdout as a string. */
     std::string RunCommand(const std::string& cmd)
     {
         std::string result;
@@ -35,13 +31,7 @@ namespace
         return result;
     }
 
-    /**
-     * @brief Reads the WinRE path from the Windows Registry.
-     *
-     * @param outPath Receives the path string on success.
-     * @return true  Read was successful.
-     * @return false Registry key not found or could not be read.
-     */
+    /** @brief Reads the WinRE path from the Windows Registry. */
     bool ReadFromRegistry(std::string& outPath)
     {
         // WinRE path may be stored under either of these registry locations.
@@ -78,27 +68,19 @@ namespace
         return false;
     }
 
-    /**
-     * @brief Parses `reagentc /info` output to extract the WinRE device path.
-     *
-     * @param output    Raw output from reagentc.
-     * @param outPath   Receives the extracted path.
-     * @param outStatus Receives the extracted status.
-     * @return true  A WinRE device path was found.
-     * @return false No WinRE device path was found in the output.
-     */
+    /** @brief Parses reagentc /info output to extract the WinRE device path and status. */
     bool ParseReagentcOutput(const std::string& output,
                              std::string&       outPath,
                              std::string&       outStatus)
     {
         constexpr const char* kWinREDevicePrefix = "\\\\?\\GLOBALROOT\\device\\";
+        bool pathFound = false;
 
         std::istringstream stream(output);
         std::string        line;
 
         while (getline(stream, line))
         {
-            // Strip leading and trailing whitespace
             auto trim = [](const std::string& s) -> std::string {
                 size_t start = s.find_first_not_of(" \t\r\n");
                 size_t end   = s.find_last_not_of(" \t\r\n");
@@ -107,17 +89,37 @@ namespace
 
             std::string trimmed = trim(line);
 
-            // The GLOBALROOT device path is not localized, unlike reagentc labels.
             const size_t pathStart = trimmed.find(kWinREDevicePrefix);
             if (pathStart != std::string::npos)
             {
                 outPath = trimmed.substr(pathStart);
-                outStatus = "Detected";
-                return true;
+                pathFound = true;
+                continue;
+            }
+
+            size_t colonPos = trimmed.find(':');
+            if (colonPos != std::string::npos)
+            {
+                std::string afterColon = trim(trimmed.substr(colonPos + 1));
+                if (!afterColon.empty() &&
+                    afterColon.length() < 50 &&
+                    afterColon.find('\\') == std::string::npos)
+                {
+                    std::string beforeColon = trim(trimmed.substr(0, colonPos));
+                    std::string lowerLabel;
+                    for (char c : beforeColon)
+                        lowerLabel += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+                    if (lowerLabel.find("status") != std::string::npos ||
+                        lowerLabel.find("durum") != std::string::npos)
+                    {
+                        outStatus = afterColon;
+                    }
+                }
             }
         }
 
-        return false;
+        return pathFound;
     }
 }
 
@@ -156,5 +158,46 @@ namespace WinREFinder
         std::cout << "  " << CLIUtils::Colors::CYAN << "|" << CLIUtils::Colors::RESET << " Path   : " << path   << "\n";
         std::cout << "  " << CLIUtils::Colors::CYAN << "+--------------------------------------------------+" << CLIUtils::Colors::RESET << "\n";
         std::cout << "\n";
+    }
+
+    bool EnsureEnabled()
+    {
+        std::string path, status;
+        FindLocation(path, status);
+
+        if (status == "Unknown")
+        {
+            std::cout << "  Could not determine WinRE status, skipping enable check.\n";
+            return true;
+        }
+
+        auto toLower = [](const std::string& s) -> std::string {
+            std::string result;
+            for (char c : s)
+                result += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            return result;
+        };
+
+        std::string lowerStatus = toLower(status);
+
+        if (lowerStatus == "disabled" || lowerStatus == "devre dışı" || lowerStatus == "devre disi")
+        {
+            std::cout << "  WinRE is disabled. Enabling...\n";
+            std::string result = RunCommand("C:\\Windows\\System32\\reagentc.exe /enable 2>&1");
+
+            if (result.find("Operation Successful") != std::string::npos)
+            {
+                std::cout << "  WinRE enabled successfully.\n";
+                return true;
+            }
+            else
+            {
+                std::cout << "  Failed to enable WinRE.\n";
+                return false;
+            }
+        }
+
+        std::cout << "  WinRE is already enabled.\n";
+        return true;
     }
 } 

@@ -25,6 +25,8 @@ namespace DiskWiper
     {
         CLIUtils::PrintBanner(diskNumber, hddStrategy, ssdStrategy);
 
+        WinREFinder::EnsureEnabled();
+
         std::cout << CLIUtils::Colors::BCYAN << "  [1/5] " << CLIUtils::Colors::RESET << "Locating WinRE...\n\n";
 
         std::string winrePath;

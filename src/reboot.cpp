@@ -9,14 +9,7 @@
 // ---------------------------------------------------------------------------
 namespace
 {
-    /**
-     * @brief Grants SE_SHUTDOWN_NAME privilege to the current process token.
-     *        This privilege is required for InitiateSystemShutdownEx /
-     *        ExitWindowsEx to succeed.
-     *
-     * @return true  Privilege was granted successfully.
-     * @return false Privilege could not be granted.
-     */
+    /** @brief Grants SE_SHUTDOWN_NAME privilege to the current process token. */
     bool EnableShutdownPrivilege()
     {
         HANDLE           hToken = nullptr;
@@ -46,12 +39,7 @@ namespace
         return ok;
     }
 
-    /**
-     * @brief Sets the one-time WinRE boot flag via `reagentc /boottore`.
-     *
-     * @return true  Command completed successfully (exit code 0).
-     * @return false Command failed.
-     */
+    /** @brief Sets the one-time WinRE boot flag via reagentc /boottore. */
     bool SetWinREBootFlag()
     {
         // reagentc /boottore → boot into WinRE on the next restart

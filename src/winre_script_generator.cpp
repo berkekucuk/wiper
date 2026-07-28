@@ -33,7 +33,7 @@ namespace
             commands =
                 "echo  [1/1] Running diskpart clean all...\r\n"
                 "echo  This may take 30-60 minutes for large drives.\r\n"
-                "(echo select disk " + std::to_string(diskNumber) + "& echo clean all& echo exit) | diskpart > nul\r\n"
+                "(echo select disk " + std::to_string(diskNumber) + "& echo clean all& echo exit) | diskpart\r\n"
                 "echo.\r\n";
             break;
 
@@ -42,7 +42,7 @@ namespace
             warning = "ALL DATA will be overwritten with random bits!";
             commands =
                 "echo  [1/3] Preparing Disk (removing partitions ^& assigning Z:)...\r\n"
-                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo create partition primary& echo assign letter=Z& echo exit) | diskpart > nul\r\n"
+                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo create partition primary& echo assign letter=Z& echo exit) | diskpart\r\n"
                 "echo.\r\n"
                 "echo  [2/3] Formatting with random data (/P:1)...\r\n"
                 "echo  This may take SEVERAL HOURS for large drives.\r\n"
@@ -58,7 +58,7 @@ namespace
             warning = "Partition metadata will be removed!";
             commands =
                 "echo  [1/3] Preparing SSD (removing partitions ^& assigning Z:)...\r\n"
-                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo create partition primary& echo assign letter=Z& echo exit) | diskpart > nul\r\n"
+                "(echo select disk " + std::to_string(diskNumber) + "& echo clean& echo create partition primary& echo assign letter=Z& echo exit) | diskpart\r\n"
                 "echo.\r\n"
                 "echo  [2/3] Quick formatting...\r\n"
                 "format Z: /FS:NTFS /Q /Y\r\n"

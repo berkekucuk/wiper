@@ -13,14 +13,7 @@
 // ---------------------------------------------------------------------------
 namespace
 {
-    /**
-     * @brief Returns a writable backup path in %TEMP%, keyed by PID.
-     *        e.g. C:\Users\user\AppData\Local\Temp\winre_wiper_backup_1234.wim
-     *
-     * Using %TEMP% avoids writing to the read-only/unmounted recovery partition
-     * where winre.wim lives (\\?\GLOBALROOT\device\... paths are not writable
-     * via CopyFileA).
-     */
+    /** @brief Returns a writable backup path in %TEMP%, keyed by PID. */
     std::string BuildBackupPath()
     {
         char tmp[MAX_PATH] = {};

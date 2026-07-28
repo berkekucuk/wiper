@@ -2,29 +2,15 @@
 
 #include <string>
 
-/**
- * @brief Functions for locating the Windows Recovery Environment (WinRE).
- */
+/** @brief Functions for locating and managing the Windows Recovery Environment (WinRE). */
 namespace WinREFinder
 {
-    /**
-     * @brief Resolves the WinRE installation path.
-     *        First detects the locale-independent WinRE device path in the
-     *        output of `reagentc /info`;
-     *        falls back to reading the Registry if that fails.
-     *
-     * @param outPath   Receives the resolved WinRE path on success.
-     * @param outStatus Receives "Detected" when the WinRE device path is found.
-     * @return true  Path was resolved successfully.
-     * @return false Path could not be determined.
-     */
+    /** @brief Resolves the WinRE path via reagentc /info, falls back to Registry. */
     bool FindLocation(std::string& outPath, std::string& outStatus);
 
-    /**
-     * @brief Prints WinRE information to the console in a formatted box.
-     *
-     * @param path   WinRE path.
-     * @param status WinRE status.
-     */
+    /** @brief Prints WinRE path and status in a formatted box. */
     void PrintInfo(const std::string& path, const std::string& status);
+
+    /** @brief Enables WinRE via reagentc /enable if currently disabled. */
+    bool EnsureEnabled();
 }

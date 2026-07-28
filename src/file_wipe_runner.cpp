@@ -420,6 +420,15 @@ namespace FileWiper
 
     int RunFileWipe(const std::string& wipeList, FileWiper::FileWipeStrategy strategy)
     {
+        if (wipeList.empty())
+        {
+            std::cerr << CLIUtils::Colors::BRED << "  [ERROR]" << CLIUtils::Colors::RESET
+                      << " wipe_list is empty in config file.\n\n";
+            std::cout << "  Press any key to exit...\n";
+            std::cin.get();
+            return EXIT_FAILURE;
+        }
+
         CLIUtils::PrintFileWipeBanner(strategy);
 
         // Resolve relative paths against exe directory (not CWD)
@@ -433,6 +442,18 @@ namespace FileWiper
             if (pos != std::string::npos)
                 exeDir.resize(pos);
             resolved = exeDir + "\\" + wipeList;
+
+            if (!std::filesystem::exists(resolved))
+            {
+                auto parentPos = exeDir.find_last_of("\\/");
+                if (parentPos != std::string::npos)
+                {
+                    std::string parentDir = exeDir.substr(0, parentPos);
+                    std::string parentResolved = parentDir + "\\" + wipeList;
+                    if (std::filesystem::exists(parentResolved))
+                        resolved = parentResolved;
+                }
+            }
         }
 
         std::cout << "  List file : " << resolved << "\n\n";

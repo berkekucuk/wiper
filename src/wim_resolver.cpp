@@ -8,10 +8,7 @@
 // ---------------------------------------------------------------------------
 namespace
 {
-    /** @brief Scans A-Z for <drive>:\Recovery\WindowsRE\winre.wim.
-     *         Only fixed (local) drives are checked to avoid network hangs
-     *         and path-spoofing via mapped shares.
-     */
+    /** @brief Scans A-Z for winre.wim on fixed drives only. */
     std::string ScanDrivesForWim()
     {
         for (char d = 'A'; d <= 'Z'; ++d)

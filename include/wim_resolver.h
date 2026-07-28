@@ -5,12 +5,6 @@
 /** @brief Resolves the full path to winre.wim, with fallback drive scanning. */
 namespace WIMResolver
 {
-    /**
-     * @brief Resolves the full path to winre.wim.
-     *        Tries the provided directory first, then scans drives as fallback.
-     *
-     * @param winreDir The path output by ReAgentC (or user override).
-     * @return std::string The full path to winre.wim, or empty if not found.
-     */
+    /** @brief Resolves winre.wim path. Tries the provided directory first, then scans drives. */
     std::string ResolveWimPath(const std::string& winreDir);
 }
