@@ -23,11 +23,11 @@ namespace DiskWiper
 
     int RunDiskWipe(int diskNumber, DiskWipeStrategy hddStrategy, DiskWipeStrategy ssdStrategy)
     {
-        CLIUtils::PrintBanner(diskNumber, hddStrategy, ssdStrategy);
-
+        std::cout << CLIUtils::Colors::BCYAN << "  [1/6] " << CLIUtils::Colors::RESET << "Checking WinRE status...\n";
         WinREFinder::EnsureEnabled();
+        std::cout << "\n";
 
-        std::cout << CLIUtils::Colors::BCYAN << "  [1/5] " << CLIUtils::Colors::RESET << "Locating WinRE...\n\n";
+        std::cout << CLIUtils::Colors::BCYAN << "  [2/6] " << CLIUtils::Colors::RESET << "Locating WinRE...\n";
 
         std::string winrePath;
         std::string winreStatus;
@@ -45,8 +45,8 @@ namespace DiskWiper
 
         WinREFinder::PrintInfo(winrePath, winreStatus);
 
-        std::cout << CLIUtils::Colors::BCYAN << "  [2/5] " << CLIUtils::Colors::RESET
-            << "Detecting disk type for Disk " << diskNumber << "...\n\n";
+        std::cout << CLIUtils::Colors::BCYAN << "  [3/6] " << CLIUtils::Colors::RESET
+            << "Detecting disk type for Disk " << diskNumber << "...\n";
 
         DiskDetector::DiskType diskType = DiskDetector::Detect(diskNumber);
 
@@ -54,13 +54,16 @@ namespace DiskWiper
             (diskType == DiskDetector::DiskType::SSD_SATA ||
             diskType == DiskDetector::DiskType::SSD_NVME);
 
-        std::cout << "  Disk type    : " << DiskDetector::ToString(diskType) << "\n";
-
         DiskWiper::DiskWipeStrategy activeStrategy = (isSSD) ? ssdStrategy : hddStrategy;
-        std::cout << "  Strategy     : " << CLIUtils::StrategyToString(activeStrategy) << "\n\n";
 
-
-        std::cout << CLIUtils::Colors::BCYAN << "  [3/5] " << CLIUtils::Colors::RESET << "Patching WinRE image...\n\n";
+        std::cout << "  Target disk  : Disk " << diskNumber << "\n";
+        std::cout << "  Disk type    : " << DiskDetector::ToString(diskType) << "\n";
+        const char* configKey = activeStrategy == DiskWipeStrategy::ZeroFill   ? "zerofill" :
+                                activeStrategy == DiskWipeStrategy::RandomFill ? "randomfill" : "quickformat";
+        std::cout << "  " << (isSSD ? "SSD" : "HDD") << " strategy : "
+                  << CLIUtils::StrategyToString(configKey) << "\n";
+        std::cout << "\n";
+        std::cout << CLIUtils::Colors::BCYAN << "  [4/6] " << CLIUtils::Colors::RESET << "Patching WinRE image...\n\n";
 
         if (!WinREPatcher::Patch(winrePath, diskNumber, activeStrategy))
         {
@@ -71,7 +74,7 @@ namespace DiskWiper
             return EXIT_FAILURE;
         }
 
-        std::cout << CLIUtils::Colors::BCYAN << "  [4/5] " << CLIUtils::Colors::RESET << "Starting countdown...\n\n";
+        std::cout << CLIUtils::Colors::BCYAN << "  [5/6] " << CLIUtils::Colors::RESET << "Starting countdown...\n";
 
         if (!Countdown::Run(10))
         {
@@ -91,7 +94,7 @@ namespace DiskWiper
             return restored ? EXIT_SUCCESS : EXIT_FAILURE;
         }
 
-        std::cout << CLIUtils::Colors::BCYAN << "  [5/5] " << CLIUtils::Colors::RESET << "Initiating WinRE reboot...\n\n";
+        std::cout << CLIUtils::Colors::BCYAN << "  [6/6] " << CLIUtils::Colors::RESET << "Initiating WinRE reboot...\n";
 
         if (!Reboot::BootIntoWinRE())
         {

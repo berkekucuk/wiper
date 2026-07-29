@@ -194,6 +194,8 @@ namespace
             if (!ok) break;
             doRandomPass();
             break;
+        case FileWiper::FileWipeStrategy::Trim:
+            break;
         }
 
         CloseHandle(hFile);
@@ -238,7 +240,7 @@ namespace FileWiper
         return true;
     }
 
-    bool WipeSingleFile(const std::string& path, FileWiper::FileWipeStrategy strategy)
+    bool WipeSingleFile(const std::string& path, FileWiper::FileWipeStrategy hddStrategy, FileWiper::FileWipeStrategy ssdStrategy)
     {
         std::error_code ec;
         std::wstring wPath = ToWide(path);
@@ -248,14 +250,10 @@ namespace FileWiper
             SetFileAttributesW(wPath.c_str(), attrs & ~FILE_ATTRIBUTE_READONLY);
 
         bool onSSD = IsFileOnSSD(path);
+        FileWiper::FileWipeStrategy strategy = onSSD ? ssdStrategy : hddStrategy;
 
-        if (onSSD)
+        if (strategy != FileWiper::FileWipeStrategy::Trim)
         {
-            std::cout << "  SSD     : " << path << " (overwrite skipped, using TRIM)\n";
-        }
-        else
-        {
-            std::cout << "  Wiping  : " << path << "\n";
             if (!WipeFileContent(path, strategy))
                 return false;
         }
@@ -311,17 +309,22 @@ namespace FileWiper
         return true;
     }
 
-    bool WipeDirectory(const std::string& dirPath, FileWiper::FileWipeStrategy strategy)
+    bool WipeDirectory(const std::string& dirPath, FileWiper::FileWipeStrategy hddStrategy, FileWiper::FileWipeStrategy ssdStrategy)
     {
         std::error_code ec;
 
-        std::cout << "  Entering: " << dirPath << "\n";
+        if (!std::filesystem::exists(dirPath, ec))
+        {
+            std::cerr << "  " << CLIUtils::Colors::YELLOW << "[WARN]" << CLIUtils::Colors::RESET
+                      << " Not found: " << dirPath << "\n";
+            return false;
+        }
 
         for (const auto& entry : std::filesystem::recursive_directory_iterator(dirPath, ec))
         {
             if (ec) break;
             if (entry.is_regular_file())
-                WipeSingleFile(WideToUTF8(entry.path().wstring()), strategy);
+                WipeSingleFile(WideToUTF8(entry.path().wstring()), hddStrategy, ssdStrategy);
         }
 
         std::filesystem::path nativeDirPath = std::filesystem::path(ToWide(dirPath));
@@ -369,26 +372,22 @@ namespace FileWiper
         return false;
     }
 
-    bool WipeAndDelete(const std::string& path, FileWiper::FileWipeStrategy strategy)
+    bool WipeAndDelete(const std::string& path, FileWiper::FileWipeStrategy hddStrategy, FileWiper::FileWipeStrategy ssdStrategy)
     {
-        // Use Windows API directly to check existence (more reliable than
-        // std::filesystem::exists on MinGW for certain paths).
         DWORD attrs = GetFileAttributesW(ToWide(path).c_str());
-        if (attrs == INVALID_FILE_ATTRIBUTES)
+        if (attrs != INVALID_FILE_ATTRIBUTES)
         {
-            DWORD err = GetLastError();
-            std::cerr << "  " << CLIUtils::Colors::YELLOW << "[WARN]" << CLIUtils::Colors::RESET
-                      << " Cannot access: " << path << " (error " << err << ")\n";
-            return false;
+            if (attrs & FILE_ATTRIBUTE_DIRECTORY)
+                return WipeDirectory(path, hddStrategy, ssdStrategy);
+            return WipeSingleFile(path, hddStrategy, ssdStrategy);
         }
 
-        if (attrs & FILE_ATTRIBUTE_DIRECTORY)
-            return WipeDirectory(path, strategy);
-
-        return WipeSingleFile(path, strategy);
+        std::cerr << "  " << CLIUtils::Colors::YELLOW << "[WARN]" << CLIUtils::Colors::RESET
+                  << " Not found: " << path << "\n";
+        return false;
     }
 
-    int WipeFiles(const std::string& listPath, FileWiper::FileWipeStrategy strategy)
+    int WipeFiles(const std::string& listPath, FileWiper::FileWipeStrategy hddStrategy, FileWiper::FileWipeStrategy ssdStrategy)
     {
         std::vector<std::string> files;
         if (!ParseFileList(listPath, files))
@@ -406,32 +405,34 @@ namespace FileWiper
         int successCount = 0;
         for (const auto& f : files)
         {
-            if (WipeAndDelete(f, strategy))
+            if (WipeAndDelete(f, hddStrategy, ssdStrategy))
                 ++successCount;
         }
         return successCount;
     }
+    
     FileWiper::FileWipeStrategy StrategyFromString(const std::string& s)
     {
+        if (s == "zerofill") return FileWiper::FileWipeStrategy::ZeroFill;
         if (s == "randomfill") return FileWiper::FileWipeStrategy::RandomFill;
         if (s == "dod3") return FileWiper::FileWipeStrategy::DOD3;
+        if (s == "trim") return FileWiper::FileWipeStrategy::Trim;
         return FileWiper::FileWipeStrategy::ZeroFill;
     }
 
-    int RunFileWipe(const std::string& wipeList, FileWiper::FileWipeStrategy strategy)
+    int RunFileWipe(const std::string& wipeList, FileWiper::FileWipeStrategy hddStrategy, FileWiper::FileWipeStrategy ssdStrategy)
     {
+        std::cout << CLIUtils::Colors::BCYAN << "  [1/3] " << CLIUtils::Colors::RESET << "Resolving file list...\n";
+
         if (wipeList.empty())
         {
-            std::cerr << CLIUtils::Colors::BRED << "  [ERROR]" << CLIUtils::Colors::RESET
+            std::cerr << CLIUtils::Colors::BRED << "  [ERROR] " << CLIUtils::Colors::RESET
                       << " wipe_list is empty in config file.\n\n";
             std::cout << "  Press any key to exit...\n";
             std::cin.get();
             return EXIT_FAILURE;
         }
 
-        CLIUtils::PrintFileWipeBanner(strategy);
-
-        // Resolve relative paths against exe directory (not CWD)
         std::string resolved = wipeList;
         if (resolved.find_first_of("\\/") == std::string::npos)
         {
@@ -456,11 +457,56 @@ namespace FileWiper
             }
         }
 
+        if (!std::filesystem::exists(resolved))
+        {
+            std::cerr << CLIUtils::Colors::BRED << "  [ERROR] " << CLIUtils::Colors::RESET
+                      << " File not found: " << resolved << "\n\n";
+            std::cout << "  Press any key to exit...\n";
+            std::cin.get();
+            return EXIT_FAILURE;
+        }
+
         std::cout << "  List file : " << resolved << "\n\n";
 
-        int wiped = WipeFiles(resolved, strategy);
+        std::cout << CLIUtils::Colors::BCYAN << "  [2/3] " << CLIUtils::Colors::RESET << "Analysing disk types...\n";
 
-        std::cout << "\n  " << CLIUtils::Colors::BCYAN << "--- Summary ---" << CLIUtils::Colors::RESET << "\n"
+        std::vector<std::string> files;
+        bool hasHDD = false, hasSSD = false;
+        if (ParseFileList(resolved, files))
+        {
+            for (const auto& f : files)
+            {
+                if (IsFileOnSSD(f))
+                    hasSSD = true;
+                else
+                    hasHDD = true;
+            }
+        }
+
+        if (hasHDD && hasSSD)
+            std::cout << "  Disk type    : HDD + SSD\n";
+        else if (hasSSD)
+            std::cout << "  Disk type    : SSD\n";
+        else
+            std::cout << "  Disk type    : HDD\n";
+
+        auto toKey = [](FileWiper::FileWipeStrategy s) {
+            return s == FileWiper::FileWipeStrategy::ZeroFill   ? "zerofill" :
+                   s == FileWiper::FileWipeStrategy::RandomFill ? "randomfill" :
+                   s == FileWiper::FileWipeStrategy::DOD3       ? "dod3" : "trim";
+        };
+        if (hasHDD)
+            std::cout << "  HDD strategy : " << CLIUtils::StrategyToString(toKey(hddStrategy)) << "\n";
+        if (hasSSD)
+            std::cout << "  SSD strategy : " << CLIUtils::StrategyToString(toKey(ssdStrategy)) << "\n";
+        std::cout << "\n";
+
+        std::cout << CLIUtils::Colors::BCYAN << "  [3/3] " << CLIUtils::Colors::RESET << "Wiping files...\n\n";
+
+        int wiped = WipeFiles(resolved, hddStrategy, ssdStrategy);
+
+        std::cout << "\n";
+        std::cout << "  " << CLIUtils::Colors::BCYAN << "--- Summary ---" << CLIUtils::Colors::RESET << "\n"
                   << "  Successfully wiped : " << wiped << "\n\n";
 
         std::cout << "  Press any key to exit...\n";

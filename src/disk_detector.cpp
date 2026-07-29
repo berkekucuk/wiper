@@ -1,4 +1,5 @@
 #include "disk_detector.h"
+#include "cli_utils.h"
 #include <windows.h>
 #include <winioctl.h>
 
@@ -23,7 +24,8 @@ namespace DiskDetector
 
         if (h == INVALID_HANDLE_VALUE)
         {
-            std::cerr << "  [WARN] Cannot open " << path
+            std::cerr << "  " << CLIUtils::Colors::YELLOW << "[WARN]" << CLIUtils::Colors::RESET
+                      << " Cannot open " << path
                       << " (code " << GetLastError()
                       << "). Defaulting to HDD strategy.\n";
             return DiskType::Unknown;
@@ -68,7 +70,8 @@ namespace DiskDetector
             }
             else
             {
-                std::cerr << "  [WARN] SeekPenalty query failed "
+                std::cerr << "  " << CLIUtils::Colors::YELLOW << "[WARN]" << CLIUtils::Colors::RESET
+                          << " SeekPenalty query failed "
                           << "(code " << GetLastError()
                           << "). Defaulting to HDD strategy.\n";
             }
@@ -85,7 +88,7 @@ namespace DiskDetector
         case DiskType::HDD:      return "HDD (rotational)";
         case DiskType::SSD_SATA: return "SSD (SATA)";
         case DiskType::SSD_NVME: return "SSD (NVMe)";
-        default:                 return "Unknown (defaulting to HDD strategy)";
+        default:                 return "Unknown";
         }
     }
 }

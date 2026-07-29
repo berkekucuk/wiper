@@ -30,17 +30,9 @@ namespace CLIUtils
      */
     void EnableColors();
 
-    /** @brief Returns a human-readable string for a DiskWipeStrategy. */
-    const char* StrategyToString(DiskWiper::DiskWipeStrategy s);
+    /** @brief Returns a human-readable label from a strategy config key. */
+    const char* StrategyToString(const std::string& strategy);
 
-    /** @brief Returns a human-readable string for a FileWipeStrategy. */
-    const char* FileWipeStrategyToString(FileWiper::FileWipeStrategy s);
-
-    /** @brief Prints the initial banner. */
-    void PrintBanner(int wipeDiskNumber,
-                     DiskWiper::DiskWipeStrategy hddStrategy,
-                     DiskWiper::DiskWipeStrategy ssdStrategy);
-
-    /** @brief Prints the banner for the file-wipe mode. */
-    void PrintFileWipeBanner(FileWiper::FileWipeStrategy strategy);
+    /** @brief Prints the banner for disk-wipe or file-wipe mode. */
+    void PrintBanner(const std::string& mode);
 }

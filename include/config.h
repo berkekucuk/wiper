@@ -11,11 +11,12 @@ namespace Config
         std::string mode;
 
         int diskNumber = 0;
-        std::string hddStrategy;
-        std::string ssdStrategy;
+        std::string hddDiskwipeStrategy;
+        std::string ssdDiskwipeStrategy;
 
         std::string wipeList;
-        std::string fileStrategy;
+        std::string hddFileStrategy;
+        std::string ssdFileStrategy;
     };
 
     /** @brief Loads configuration from a text file (default: wiper_config.txt). */

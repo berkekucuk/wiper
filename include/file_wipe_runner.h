@@ -11,7 +11,8 @@ namespace FileWiper
     {
         ZeroFill,
         RandomFill,
-        DOD3
+        DOD3,
+        Trim
     };
 
     /** @brief Converts a string to FileWipeStrategy (default: ZeroFill). */
@@ -21,11 +22,11 @@ namespace FileWiper
     bool ParseFileList(const std::string& listPath, std::vector<std::string>& files);
 
     /** @brief Wipes a single file or directory and deletes it. */
-    bool WipeAndDelete(const std::string& path, FileWipeStrategy strategy);
+    bool WipeAndDelete(const std::string& path, FileWipeStrategy hddStrategy, FileWipeStrategy ssdStrategy);
 
     /** @brief Wipes all entries listed in a file list. Returns success count. */
-    int WipeFiles(const std::string& listPath, FileWipeStrategy strategy);
+    int WipeFiles(const std::string& listPath, FileWipeStrategy hddStrategy, FileWipeStrategy ssdStrategy);
 
-    /** @brief Runs the full file-wipe routine using the given list and strategy. */
-    int RunFileWipe(const std::string& wipeList, FileWipeStrategy strategy);
+    /** @brief Runs the full file-wipe routine using the given list and strategies. */
+    int RunFileWipe(const std::string& wipeList, FileWipeStrategy hddStrategy, FileWipeStrategy ssdStrategy);
 }

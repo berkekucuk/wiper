@@ -137,6 +137,28 @@ Diskin geri kalanında, tıpkı birinci bölüm gibi kendi içinde bağımsız d
 
 ---
 
+### HDD ve SSD'de Silme Sürecinin Farkı
+
+#### HDD'de Silme (Dosya Sistemi Düzeyinde)
+
+HDD'de bir dosyayı sildiğinizde, işletim sistemi yalnızca **dosya sistemindeki kaydını** (MFT girişi, bitmap'teki cluster haritası) siler ve o alanları "boş" olarak işaretler. Verinin fiziksel olarak manyetik plakada durduğu sektörlere **dokunulmaz**. Ta ki üzerine yeni bir veri yazılana kadar (overwrite) eski veri orada kalmaya devam eder. Bu nedenle HDD'de silinen veriler, üzerine yazılmadığı sürece kurtarılabilir.
+
+#### SSD'de Silme (TRIM ve Garbage Collection)
+
+SSD'de silme işlemi, HDD'den tamamen farklı bir mekanizmayla çalışır:
+
+1. **TRIM Komutu:** Dosya silindiğinde işletim sistemi, SSD kontrolcüsüne bir TRIM komutu gönderir. Bu komut, "artık şu mantıksal adreslerdeki (LBA) veri geçerli değil, o fiziksel sayfaları boşaltabilirsin" anlamına gelir.
+
+2. **Hızlı ve Güvenilir:** TRIM sayesinde işletim sistemi, SSD'nin hangi blokların gerçekten boş olduğunu bilmesini sağlar. Bu sayede yeni veri yazılacağında SSD, önce oku-sil-yaz döngüsüne girmeden doğrudan boş sayfalara yazabilir.
+
+3. **Garbage Collection (GC):** SSD kontrolcüsü, TRIM ile boşaltılan alanları ve artık geçerliliği olmayan fiziksel sayfaları GC sürecinde toplar: içinde geçerli veri olan sayfaları başka bir bloğa taşır, ardından tüm bloğu siler (erase). Böylece yeni yazılara hazır hale getirir.
+
+4. **TRIM'siz SSD:** Eğer TRIM desteklenmez veya çalışmazsa (örneğin USB üzerinden bağlı SSD, RAID, exFAT), silinen verinin fiziksel sayfaları hâlâ dolu görünür. SSD, üzerine yazma gelene kadar o sayfaları boşaltmaz ve yeni veriyi başka bir boş sayfaya yazar (overwrite'in işe yaramadığı durum budur).
+
+> **Overwrite notu:** Overwrite (üzerine yazma) HDD'de güvenilirdir çünkü eski veri fiziksel olarak aynı sektöre yazılır. SSD'de ise wear-leveling ve FTL nedeniyle aynı mantıksal adrese yazsanız bile fiziksel hücre değişir — eski veri hâlâ bir NAND sayfasında durur. Bu yüzden SSD'de güvenli silme için overwrite değil, TRIM + NVMe Format gibi yöntemler kullanılır.
+
+---
+
 ## Projede Kullanılan Silme Komutları
 
 Disk mimarisi incelendikten sonra artık Windows'un varsayılan disk komutlarının nerede çalıştığına ve nerede yetersiz kaldığına bakılabilir:
@@ -201,9 +223,9 @@ Tek geçiş (1 pass).
 **DOD3 (`dod3`)**
 DOD 5220.22-M standardı: önce rastgele veri, sonra ters bitler (~random), sonra tekrar rastgele veri yazılır. Ardından dosya silinir. Üç geçiş (3 pass).
 
-> **SSD notu:** Dosya SSD'deyse üzerine yazma atlanır, yalnızca TRIM komutu gönderilir.
-> SSD'lerde wear-leveling nedeniyle sektör bazında üzerine yazmak güvenilir olmadığından,
-> sadece dosyanın NTFS'teki kaydı silinir ve TRIM ile fiziksel blokların boşaltılması sağlanır.
+**Trim (`trim`)**
+Overwrite tamamen atlanır, dosya doğrudan silinir. SSD'deyse TRIM komutu gönderilir.
+HDD'deyse sadece dosya sistemi kaydı silinir (veri plakada kalır).
 
 ---
 
@@ -267,13 +289,13 @@ mode=diskwipe
 
 # Disk silme ayarları (mode=diskwipe)
 disk_number=0
-hdd_strategy=zerofill       # zerofill | randomfill | quickformat
-ssd_strategy=quickformat    # zerofill | randomfill | quickformat
+hdd_diskwipe_strategy=zerofill       # zerofill | randomfill | quickformat
+ssd_diskwipe_strategy=quickformat    # zerofill | randomfill | quickformat (recommended)
 
 # Dosya silme ayarları (mode=filewipe)
 wipe_list=wipe_list.txt
-file_strategy=zerofill       # zerofill | randomfill | dod3
-```
+hdd_filewipe_strategy=zerofill  # zerofill | randomfill | dod3 | trim
+ssd_filewipe_strategy=trim      # zerofill | randomfill | dod3 | trim (recommended) 
 
 ### Stratejiler
 
@@ -281,8 +303,9 @@ file_strategy=zerofill       # zerofill | randomfill | dod3
 |----------|---------------|----------|
 | `zerofill` | Disk & File | Tüm sektörlere sıfır yazar (HDD `clean all`, file 1 pass) |
 | `randomfill` | Disk & File | Sıfır + rastgele veri yazar (HDD `format /P:1`) |
-| `quickformat` | Disk (SSD) | Sadece partition tablosunu temizler, sektör yazmaz |
+| `quickformat` | Disk (SSD) | Sadece partition tablosunu temizler, sektör yazmaz (SSD için **default & recommended**) |
 | `dod3` | File | DOD 5220.22-M: rastgele + ters + rastgele (3 pass) |
+| `trim` | File | Overwrite atlanır, sadece dosya sistemi kaydı silinir + TRIM (SSD için **default & recommended**) |
 
 ### Disk Numarasını Bulmak
 

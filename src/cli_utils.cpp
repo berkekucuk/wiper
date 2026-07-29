@@ -18,47 +18,31 @@ namespace CLIUtils
         }
     }
 
-    const char* StrategyToString(DiskWiper::DiskWipeStrategy s)
+    const char* StrategyToString(const std::string& s)
     {
-        if (s == DiskWiper::DiskWipeStrategy::ZeroFill)          return "Zero Fill (clean all)";
-        if (s == DiskWiper::DiskWipeStrategy::RandomFill)        return "Random Fill (format /P:1)";
-        return "Quick Format";
+        if (s == "zerofill")    return "Zero Fill (1 pass)";
+        if (s == "randomfill")  return "Random Fill (1 pass)";
+        if (s == "dod3")        return "DOD 5220.22-M (3 passes)";
+        if (s == "trim")        return "Trim (no overwrite)";
+        if (s == "quickformat") return "Quick Format";
+        return s.c_str();
     }
 
-    void PrintBanner(int wipeDiskNumber,
-                     DiskWiper::DiskWipeStrategy hddStrategy,
-                     DiskWiper::DiskWipeStrategy ssdStrategy)
+    void PrintBanner(const std::string& mode)
     {
+        bool diskWipe = (mode == "diskwipe");
         std::cout << "\n";
         std::cout << CLIUtils::Colors::BCYAN << "  ====================================================\n" << CLIUtils::Colors::RESET;
-        std::cout << CLIUtils::Colors::BCYAN << "                        Wiper\n"                           << CLIUtils::Colors::RESET;
+        if (diskWipe)
+            std::cout << CLIUtils::Colors::BCYAN << "                   Wiper  -  Disk Wipe\n"                           << CLIUtils::Colors::RESET;
+        else
+            std::cout << CLIUtils::Colors::BCYAN << "                   Wiper  -  File Wipe\n"               << CLIUtils::Colors::RESET;
         std::cout << CLIUtils::Colors::BCYAN << "  ====================================================\n" << CLIUtils::Colors::RESET;
         std::cout << "\n";
-        std::cout << "  Target disk  : Disk " << wipeDiskNumber << "\n";
-        std::cout << "  HDD strategy : " << StrategyToString(hddStrategy) << "\n";
-        std::cout << "  SSD strategy : " << StrategyToString(ssdStrategy) << "\n";
-        std::cout << "\n";
-        std::cout << CLIUtils::Colors::BRED << "  WARNING : ALL DATA on the target disk will be erased!\n" << CLIUtils::Colors::RESET;
-        std::cout << "\n";
-    }
-
-    const char* FileWipeStrategyToString(FileWiper::FileWipeStrategy s)
-    {
-        if (s == FileWiper::FileWipeStrategy::ZeroFill)   return "Zero Fill (1 pass)";
-        if (s == FileWiper::FileWipeStrategy::RandomFill) return "Random Fill (1 pass)";
-        return "DOD 5220.22-M (3 passes)";
-    }
-
-    void PrintFileWipeBanner(FileWiper::FileWipeStrategy strategy)
-    {
-        std::cout << "\n";
-        std::cout << CLIUtils::Colors::BCYAN << "  ====================================================\n" << CLIUtils::Colors::RESET;
-        std::cout << CLIUtils::Colors::BCYAN << "                   Wiper  -  File Wipe\n"               << CLIUtils::Colors::RESET;
-        std::cout << CLIUtils::Colors::BCYAN << "  ====================================================\n" << CLIUtils::Colors::RESET;
-        std::cout << "\n";
-        std::cout << "  Strategy : " << FileWipeStrategyToString(strategy) << "\n";
-        std::cout << "\n";
-        std::cout << CLIUtils::Colors::BRED << "  WARNING : Specified files will be permanently erased!\n" << CLIUtils::Colors::RESET;
+        if (diskWipe)
+            std::cout << CLIUtils::Colors::BRED << "  WARNING : ALL DATA on the target disk will be erased!\n" << CLIUtils::Colors::RESET;
+        else
+            std::cout << CLIUtils::Colors::BRED << "  WARNING : Specified files will be permanently erased!\n" << CLIUtils::Colors::RESET;
         std::cout << "\n";
     }
 }

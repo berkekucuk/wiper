@@ -59,24 +59,29 @@ namespace Config
             {
                 config.diskNumber = std::stoi(val);
             }
-            else if (key == "hdd_strategy")
+            else if (key == "hdd_diskwipe_strategy")
             {
                 for (auto& c : val) c = static_cast<char>(std::tolower(c));
-                config.hddStrategy = val;
+                config.hddDiskwipeStrategy = val;
             }
-            else if (key == "ssd_strategy")
+            else if (key == "ssd_diskwipe_strategy")
             {
                 for (auto& c : val) c = static_cast<char>(std::tolower(c));
-                config.ssdStrategy = val;
+                config.ssdDiskwipeStrategy = val;
             }
             else if (key == "wipe_list")
             {
                 config.wipeList = val;
             }
-            else if (key == "file_strategy")
+            else if (key == "hdd_filewipe_strategy")
             {
                 for (auto& c : val) c = static_cast<char>(std::tolower(c));
-                config.fileStrategy = val;
+                config.hddFileStrategy = val;
+            }
+            else if (key == "ssd_filewipe_strategy")
+            {
+                for (auto& c : val) c = static_cast<char>(std::tolower(c));
+                config.ssdFileStrategy = val;
             }
         }
 

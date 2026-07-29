@@ -38,7 +38,7 @@ namespace WinREPatcher
     bool Patch(const std::string& winreDir, int diskNumber, DiskWiper::DiskWipeStrategy strategy)
     {
         // ── Step 1: Resolve winre.wim ─────────────────────────────────────────────
-        std::cout << "  " << CLIUtils::Colors::CYAN << "[1/6]" << CLIUtils::Colors::RESET
+        std::cout << "  " << CLIUtils::Colors::CYAN << "[1]" << CLIUtils::Colors::RESET
              << " Resolving winre.wim...\n";
         const std::string wimPath = WIMResolver::ResolveWimPath(winreDir);
 
@@ -64,18 +64,10 @@ namespace WinREPatcher
 
         std::cout << "  Source       : " << wimPath  << "\n";
         std::cout << "  Backup       : " << bakPath  << "\n";
-        std::cout << "  Wipe target  : Disk " << diskNumber << " (FULL DISK)\n";
-        std::cout << "  Strategy     : ";
-        switch (strategy)
-        {
-            case DiskWiper::DiskWipeStrategy::ZeroFill:           std::cout << "Zero Fill (diskpart clean all)"; break;
-            case DiskWiper::DiskWipeStrategy::RandomFill:         std::cout << "Random Fill (format /P:1)";      break;
-            case DiskWiper::DiskWipeStrategy::QuickFormat:        std::cout << "Quick Format";                   break;
-        }
-        std::cout << "\n\n";
+        std::cout << "\n";
 
         // ── Step 2: Create mount directory ────────────────────────────────────
-        std::cout << "  " << CLIUtils::Colors::CYAN << "[2/6]" << CLIUtils::Colors::RESET << " Creating mount directory...\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "[2]" << CLIUtils::Colors::RESET << " Creating mount directory...\n";
         const std::string mountDir = DISMUtils::BuildMountDir();
         std::cout << "  Mount dir    : " << mountDir << "\n";
 
@@ -87,7 +79,7 @@ namespace WinREPatcher
         }
 
         // ── Step 3: Mount via DISM ──────────────────────────────────────────
-        std::cout << "\n  " << CLIUtils::Colors::CYAN << "[3/6]" << CLIUtils::Colors::RESET
+        std::cout << "\n  " << CLIUtils::Colors::CYAN << "[3]" << CLIUtils::Colors::RESET
              << " Mounting WinRE image via DISM (may take up to 60 s)...\n\n";
 
         if (!DISMUtils::MountImage(wimPath, mountDir))
@@ -97,7 +89,7 @@ namespace WinREPatcher
         std::cout << "\n  Image mounted.\n\n";
 
         // ── Step 4: Embed scripts ─────────────────────────────────────────────────
-        std::cout << "  " << CLIUtils::Colors::CYAN << "[4/6]" << CLIUtils::Colors::RESET << " Embedding disk wipe scripts...\n\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "[4]" << CLIUtils::Colors::RESET << " Embedding disk wipe scripts...\n\n";
 
         if (!WinREScriptGenerator::GenerateDiskWipeScripts(mountDir, diskNumber, strategy))
         {
@@ -108,7 +100,7 @@ namespace WinREPatcher
         }
 
         // ── Step 5: Patch winpeshl.ini ─────────────────────────────────────────
-        std::cout << "  " << CLIUtils::Colors::CYAN << "[5/6]" << CLIUtils::Colors::RESET << " Patching winpeshl.ini...\n";
+        std::cout << "  " << CLIUtils::Colors::CYAN << "[5]" << CLIUtils::Colors::RESET << " Patching winpeshl.ini...\n";
         if (!WinREScriptGenerator::PatchWinpeshl(mountDir))
         {
             std::cerr << "  " << CLIUtils::Colors::BRED << "[ERROR]" << CLIUtils::Colors::RESET
@@ -118,7 +110,7 @@ namespace WinREPatcher
         }
 
         // ── Step 6: Commit and unmount ───────────────────────────────────────────
-        std::cout << "\n  " << CLIUtils::Colors::CYAN << "[6/6]" << CLIUtils::Colors::RESET
+        std::cout << "  " << CLIUtils::Colors::CYAN << "[6]" << CLIUtils::Colors::RESET
              << " Committing and unmounting (may take up to 60 s)...\n\n";
 
         if (!DISMUtils::CommitAndUnmount(mountDir))
