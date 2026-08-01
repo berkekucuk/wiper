@@ -50,6 +50,16 @@ namespace DiskWiper
 
         DiskDetector::DiskType diskType = DiskDetector::Detect(diskNumber);
 
+        if (diskType == DiskDetector::DiskType::Unknown)
+        {
+            std::cerr << CLIUtils::Colors::BRED << "  [ERROR] " << CLIUtils::Colors::RESET
+                      << "Disk " << diskNumber << " does not exist or cannot be accessed.\n"
+                      << "          Check disk_number in wiper_config.txt.\n\n";
+            std::cout << "  Press any key to exit...\n";
+            std::cin.get();
+            return EXIT_FAILURE;
+        }
+
         const bool isSSD =
             (diskType == DiskDetector::DiskType::SSD_SATA ||
             diskType == DiskDetector::DiskType::SSD_NVME);

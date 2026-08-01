@@ -11,7 +11,6 @@
 #include <fstream>
 #include <iostream>
 #include <random>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -466,21 +465,27 @@ namespace FileWiper
             return EXIT_FAILURE;
         }
 
-        std::cout << "  List file : " << resolved << "\n\n";
-
-        std::cout << CLIUtils::Colors::BCYAN << "  [2/3] " << CLIUtils::Colors::RESET << "Analysing disk types...\n";
+        std::cout << "  List file : " << resolved << "\n";
 
         std::vector<std::string> files;
-        bool hasHDD = false, hasSSD = false;
-        if (ParseFileList(resolved, files))
+        if (!ParseFileList(resolved, files) || files.empty())
         {
-            for (const auto& f : files)
-            {
-                if (IsFileOnSSD(f))
-                    hasSSD = true;
-                else
-                    hasHDD = true;
-            }
+            std::cerr << CLIUtils::Colors::BRED << "  [ERROR] " << CLIUtils::Colors::RESET
+                      << " Wipe list is empty.\n\n";
+            std::cout << "  Press any key to exit...\n";
+            std::cin.get();
+            return EXIT_FAILURE;
+        }
+
+        std::cout << "\n";
+        std::cout << CLIUtils::Colors::BCYAN << "  [2/3] " << CLIUtils::Colors::RESET << "Analysing disk types...\n";
+        bool hasHDD = false, hasSSD = false;
+        for (const auto& f : files)
+        {
+            if (IsFileOnSSD(f))
+                hasSSD = true;
+            else
+                hasHDD = true;
         }
 
         if (hasHDD && hasSSD)
@@ -493,7 +498,8 @@ namespace FileWiper
         auto toKey = [](FileWiper::FileWipeStrategy s) {
             return s == FileWiper::FileWipeStrategy::ZeroFill   ? "zerofill" :
                    s == FileWiper::FileWipeStrategy::RandomFill ? "randomfill" :
-                   s == FileWiper::FileWipeStrategy::DOD3       ? "dod3" : "trim";
+                   s == FileWiper::FileWipeStrategy::DOD3       ? "dod3" :
+                   s == FileWiper::FileWipeStrategy::Trim       ? "trim" : "unknown";
         };
         if (hasHDD)
             std::cout << "  HDD strategy : " << CLIUtils::StrategyToString(toKey(hddStrategy)) << "\n";

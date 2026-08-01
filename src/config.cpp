@@ -6,10 +6,14 @@
 #include <cctype>
 #include <fstream>
 #include <iostream>
+#include <string>
 
-namespace Config
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+namespace
 {
-    static std::string Trim(const std::string& s)
+    std::string Trim(const std::string& s)
     {
         auto left = std::find_if_not(s.begin(), s.end(),
             [](unsigned char c) { return std::isspace(c) != 0; });
@@ -18,7 +22,13 @@ namespace Config
         return (left < right) ? std::string(left, right) : "";
     }
 
-    static std::string ExeDir()
+    void ToLower(std::string& s)
+    {
+        for (auto& c : s)
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+
+    std::string ExeDir()
     {
         char exePath[MAX_PATH] = {};
         GetModuleFileNameA(nullptr, exePath, MAX_PATH);
@@ -29,7 +39,7 @@ namespace Config
         return path;
     }
 
-    static bool ParseConfig(std::ifstream& in, WipeConfig& config)
+    bool ParseConfig(std::ifstream& in, Config::WipeConfig& config)
     {
         std::string line;
         while (std::getline(in, line))
@@ -48,25 +58,38 @@ namespace Config
             if (comment != std::string::npos)
                 val = Trim(val.substr(0, comment));
 
-            for (auto& c : key) c = static_cast<char>(std::tolower(c));
+            ToLower(key);
 
             if (key == "mode")
             {
-                for (auto& c : val) c = static_cast<char>(std::tolower(c));
+                ToLower(val);
                 config.mode = val;
             }
             else if (key == "disk_number")
             {
-                config.diskNumber = std::stoi(val);
+                if (val.empty())
+                {
+                    std::cerr << "  [ERROR] 'disk_number' is empty in config file.\n";
+                    return false;
+                }
+                try
+                {
+                    config.diskNumber = std::stoi(val);
+                }
+                catch (const std::exception&)
+                {
+                    std::cerr << "  [ERROR] Invalid 'disk_number' value: " << val << "\n";
+                    return false;
+                }
             }
             else if (key == "hdd_diskwipe_strategy")
             {
-                for (auto& c : val) c = static_cast<char>(std::tolower(c));
+                ToLower(val);
                 config.hddDiskwipeStrategy = val;
             }
             else if (key == "ssd_diskwipe_strategy")
             {
-                for (auto& c : val) c = static_cast<char>(std::tolower(c));
+                ToLower(val);
                 config.ssdDiskwipeStrategy = val;
             }
             else if (key == "wipe_list")
@@ -75,13 +98,17 @@ namespace Config
             }
             else if (key == "hdd_filewipe_strategy")
             {
-                for (auto& c : val) c = static_cast<char>(std::tolower(c));
+                ToLower(val);
                 config.hddFileStrategy = val;
             }
             else if (key == "ssd_filewipe_strategy")
             {
-                for (auto& c : val) c = static_cast<char>(std::tolower(c));
+                ToLower(val);
                 config.ssdFileStrategy = val;
+            }
+            else
+            {
+                std::cerr << "  [WARN] Unknown config key: " << key << "\n";
             }
         }
 
@@ -91,43 +118,46 @@ namespace Config
             return false;
         }
 
+        if (config.hddDiskwipeStrategy.empty()) config.hddDiskwipeStrategy = "zerofill";
+        if (config.ssdDiskwipeStrategy.empty()) config.ssdDiskwipeStrategy = "quickformat";
+        if (config.hddFileStrategy.empty())     config.hddFileStrategy     = "zerofill";
+        if (config.ssdFileStrategy.empty())     config.ssdFileStrategy     = "trim";
+
         return true;
     }
 
+    bool TryLoad(const std::string& tryPath, Config::WipeConfig& config)
+    {
+        std::ifstream in(tryPath);
+        if (!in.is_open())
+            return false;
+        return ParseConfig(in, config);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Config interface implementation
+// ---------------------------------------------------------------------------
+namespace Config
+{
     bool LoadConfig(WipeConfig& config, const std::string& path)
     {
-        // If caller provides an absolute/relative path with separator, use it as-is.
         if (path.find_first_of("\\/") != std::string::npos)
-        {
-            std::ifstream in(path);
-            if (!in.is_open())
-            {
-                std::cerr << "  [ERROR] Could not open config file: " << path << "\n";
-                return false;
-            }
-            return ParseConfig(in, config);
-        }
+            return TryLoad(path, config);
 
-        // Try exe directory first.
-        std::string resolved = ExeDir() + "\\" + path;
-        {
-            std::ifstream in(resolved);
-            if (in.is_open())
-                return ParseConfig(in, config);
-        }
+        std::string exeDir = ExeDir();
+        if (TryLoad(exeDir + "\\" + path, config))
+            return true;
 
-        // Fallback: one level up from exe dir (project root during development).
-        auto pos = ExeDir().find_last_of("\\/");
+        auto pos = exeDir.find_last_of("\\/");
         if (pos != std::string::npos)
-            resolved = ExeDir().substr(0, pos) + "\\" + path;
-
-        std::ifstream in(resolved);
-        if (!in.is_open())
         {
-            std::cerr << "  [ERROR] Could not open config file: " << resolved << "\n";
-            return false;
+            std::string parent = exeDir.substr(0, pos) + "\\" + path;
+            if (TryLoad(parent, config))
+                return true;
         }
 
-        return ParseConfig(in, config);
+        std::cerr << "  [ERROR] Could not open config file: " << path << "\n";
+        return false;
     }
 }

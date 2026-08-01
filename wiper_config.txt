@@ -1,13 +1,25 @@
 # Wiper configuration file
 # mode: diskwipe or filewipe
-mode=filewipe
+mode=diskwipe
 
+# ---------------------------------------------------------------------------
 # Disk wipe settings (used when mode=diskwipe)
+# ---------------------------------------------------------------------------
 disk_number=0
-hdd_diskwipe_strategy=zerofill       # zerofill | randomfill | quickformat
-ssd_diskwipe_strategy=quickformat    # zerofill | randomfill | quickformat (recommended)
 
+# hdd_diskwipe_strategy: zerofill | randomfill | quickformat
+hdd_diskwipe_strategy=zerofill
+
+# ssd_diskwipe_strategy: zerofill | randomfill | quickformat (default)
+ssd_diskwipe_strategy=quickformat
+
+# ---------------------------------------------------------------------------
 # File wipe settings (used when mode=filewipe)
+# ---------------------------------------------------------------------------
 wipe_list=wipe_list.txt
-hdd_filewipe_strategy=zerofill  # zerofill | randomfill | dod3 | trim
-ssd_filewipe_strategy=trim      # zerofill | randomfill | dod3 | trim (recommended) 
+
+# hdd_filewipe_strategy: zerofill | randomfill | dod3 | trim
+hdd_filewipe_strategy=zerofill
+
+# ssd_filewipe_strategy: zerofill | randomfill | dod3 | trim (default)
+ssd_filewipe_strategy=trim
