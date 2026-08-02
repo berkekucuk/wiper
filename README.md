@@ -273,6 +273,33 @@ partition seçimi diskpart ile, silme ise format.exe ile yapıldı.
 
 ---
 
+## Güç Kesintisi (Power Loss) Senaryoları ve Test Önerileri
+
+Otonom silme işlemi WinRE ortamında arka planda yürütülürken yaşanabilecek ani bir elektrik kesintisi veya batarya tükenmesi, donanım türüne göre farklı sonuçlar doğurur.
+
+### HDD (Mekanik Disk) Durumu
+Mekanik disklerde uygulanan `clean all` (ZeroFill) işlemi disk kapasitesine bağlı olarak saatler sürebilir, bu nedenle güç kesintisine yakalanma riski en yüksek senaryodur.
+- **Ne Yaşanır?** İşlem yarıda kesilirse, diskpart komutu zaten en başta partition tablosunu (MBR/GPT) sildiği için sistem bir daha ana diskten açılamaz. Disk "RAW" (başlatılmamış) halde kalır.
+- **Veri Durumu:** İşlemin geldiği sektöre kadar olan kısım donanımsal olarak sıfırlarla doludur ve kurtarılamaz. Ancak işlemin ulaşamadığı (diskin sonlarına doğru olan) fiziksel sektörlerdeki veriler, profesyonel veri kurtarma laboratuvarlarında manyetik okumalarla kısmen geri getirilebilir.
+- **Ne Yapılmalı?** Sistem harici bir kurtarma USB'si ile başlatılmalı ve yarım kalan ZeroFill işlemi (temizlik tam sağlanana kadar) yeniden tetiklenmelidir.
+
+### SSD (Katı Hal Sürücüsü) Durumu
+SSD'lerde uygulanan TRIM tabanlı Hızlı Biçimlendirme (Quick Format) işlemi saniyeler sürer. Bu komutun tam işlendiği milisaniyelerde yaşanacak bir güç kesintisi düşük ihtimallidir.
+- **Ne Yaşanır?** İşletim sistemi TRIM sinyalini gönderdikten sonra güç aniden kesilirse, SSD'nin kontrolcüsü arka plandaki "Garbage Collection" (hücre boşaltma) işlemini tamamlayamayabilir. Kurumsal (Enterprise) SSD'lerde bu durumu önleyen PLP (Power Loss Protection) kapasitörleri bulunur ve işlemi güvenle bitirir. Tüketici tipi SSD'lerde ise güç aniden kesilirse FTL (Flash Translation Layer) tablosu bozulabilir ve disk tamamen kilitlenebilir (bricked state).
+- **Veri Durumu:** TRIM komutu işlenmeye başladığı an SSD kontrolcüsü o verilerin haritalamasını anında sildiği için, güç kesilse bile standart veri kurtarma programları veriyi göremez. Yalnızca bellek çipleri sökülerek (chip-off tekniği) donanımsal düzeyde çok düşük bir ihtimalle ham veriye ulaşılabilir.
+- **Ne Yapılmalı?** FTL bozulması yaşanıp disk kilitlendiyse, üreticinin donanım araçlarıyla (örn. Samsung Magician üzerinden PSID Revert veya Secure Erase) donanım seviyesinde sıfırlanması ve kendine getirilmesi gerekebilir.
+
+### Nasıl Test Edilir? (Gelecek Çalışma Önerisi)
+Projenin sonraki fazlarında bu senaryonun donanımsal olarak test edilmesi önerilir:
+1. İçinde önceden bilinen test verileri (dummy data) bulunan fiziksel bir test cihazında otonom silme işlemi başlatılır.
+2. İşlem devam ederken (örneğin HDD için 30. dakikada) cihazın güç kablosu ve bataryası aniden sökülür.
+3. Cihaz harici bir Linux Live USB (örn. Ubuntu veya Kali) ile başlatılır.
+4. `hexdump`, `xxd` veya `dd` komutlarıyla disk blokları düşük seviyede (low-level) okunarak;
+   - Sıfırların (0x00) hangi adreste bittiği,
+   - Eski verilerin donanım üzerinde okunabilir kalıp kalmadığı raporlanır.
+
+---
+
 ## Konfigürasyon
 
 Tüm ayarlar `wiper_config.txt` dosyasından okunur (derleme gerektirmez).
